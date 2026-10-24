@@ -47,7 +47,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </div>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
-        <footer className="py-6 text-center text-[11px] text-muted">made with fud by {BRAND.team} :)</footer>
+        <footer className="py-6 text-center text-[11px] text-muted">made with fear, uncertainty and doubt by {BRAND.team} :)</footer>
       </body>
     </html>
   );
