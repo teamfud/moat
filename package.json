@@ -9,7 +9,6 @@
     "lint": "eslint",
     "test": "vitest run",
     "typecheck": "next typegen && tsc --noEmit",
-    "update-datadog": "node scripts/update-datadog.mjs",
     "test:live": "test/live/run.sh"
   },
   "dependencies": {

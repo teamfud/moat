@@ -12,7 +12,7 @@ import { BoxEditor } from "@/components/BoxEditor";
 import { Findings } from "@/components/Findings";
 import { Modal } from "@/components/Modal";
 import { useConfirm } from "@/components/useConfirm";
-import { Badge, Button, Card, FormMessage, Input, Label, PageHeader, Textarea, Th, theadClass } from "@/components/ui";
+import { Badge, Button, Card, FormMessage, Label, PageHeader, Textarea, Th, theadClass } from "@/components/ui";
 
 const svc = (s: Service) => (s.proto === "icmp" ? "ping" : `${s.label} ${s.ports}${s.proto === "udp" ? "/udp" : ""}`);
 
@@ -26,7 +26,7 @@ function Ranges({ topo }: { topo: Topology }) {
   return (
     <div className="grid gap-4 p-5 md:grid-cols-3">
       <Label>
-        in-scope ranges (rule 14.a)
+        in-scope ranges (ur team&apos;s networks)
         <Textarea value={scope} onChange={(e) => setScope(e.target.value)} onBlur={() => setTopo((t) => ({ ...t, scope: lines(scope) }))} className="font-mono" />
       </Label>
       <Label>
@@ -34,7 +34,7 @@ function Ranges({ topo }: { topo: Topology }) {
         <Textarea value={admin} onChange={(e) => setAdmin(e.target.value)} onBlur={() => setTopo((t) => ({ ...t, adminSources: lines(admin) }))} className="font-mono" />
       </Label>
       <Label>
-        trusted: never blocked, always let in. &quot;cidr why&quot; per line
+        trusted: never blocked, always let in (mgmt, scoring, monitoring). &quot;cidr why&quot; per line, or paste a plain list
         <Textarea
           value={trusted}
           onChange={(e) => setTrusted(e.target.value)}
@@ -50,32 +50,6 @@ function Ranges({ topo }: { topo: Topology }) {
           className="font-mono"
         />
       </Label>
-      <div className="flex flex-wrap items-end gap-3 md:col-span-3">
-        <span className="text-xs text-muted">syslog that must stay open (rule 14.vi):</span>
-        {topo.syslog ? (
-          <>
-            <Label>
-              from box
-              <Input value={topo.syslog.from} onChange={(e) => setTopo((t) => ({ ...t, syslog: { ...t.syslog!, from: e.target.value } }))} className="w-36" />
-            </Label>
-            <Label>
-              to box
-              <Input value={topo.syslog.to} onChange={(e) => setTopo((t) => ({ ...t, syslog: { ...t.syslog!, to: e.target.value } }))} className="w-36" />
-            </Label>
-            <Label>
-              ports
-              <Input value={topo.syslog.ports} onChange={(e) => setTopo((t) => ({ ...t, syslog: { ...t.syslog!, ports: e.target.value } }))} className="w-24 font-mono" />
-            </Label>
-            <Button size="sm" variant="ghost" onClick={() => setTopo((t) => ({ ...t, syslog: null }))}>
-              no syslog rule
-            </Button>
-          </>
-        ) : (
-          <Button size="sm" variant="secondary" onClick={() => setTopo((t) => ({ ...t, syslog: { from: "", to: "", ports: "514" } }))}>
-            add syslog rule
-          </Button>
-        )}
-      </div>
     </div>
   );
 }
@@ -114,7 +88,7 @@ export default function BoxesPage() {
   return (
     <>
       <PageHeader title="boxes" sub={`${topo.name} · team ${topo.team} · {x} in an address is the team number`}>
-        <Button variant="secondary" onClick={() => replace({ ...IRSEC_2026, team: topo.team }, "the irsec 2026 preset")}>
+        <Button variant="secondary" onClick={() => replace({ ...IRSEC_2026, team: topo.team, trusted: topo.trusted }, "the irsec 2026 boxes")}>
           load preset
         </Button>
         <Button variant="secondary" onClick={() => file.current?.click()}>

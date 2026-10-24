@@ -31,7 +31,7 @@ export default function BlockPage() {
 
   return (
     <>
-      <PageHeader title="quick block" sub="paste red team ips, get block commands for every box. single ips only (rule 15)" />
+      <PageHeader title="quick block" sub="paste red team ips, get block commands for every box. single ips only" />
       {!hydrated ? null : (
         <div className="flex flex-col gap-5">
           <Findings findings={topoFindings} />

@@ -49,9 +49,6 @@ ipt -A FUD_IN -i lo -j ACCEPT
 ipt -A FUD_IN -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ipt -A FUD_IN -m conntrack --ctstate INVALID -j DROP
 ${rs.trusted.map((t) => `ipt -A FUD_IN -s ${t.cidr} -j ACCEPT ${comment(`trusted: ${t.why}`)}`).join("\n")}
-for n in ${rs.datadog.join(" ")}; do
-  ipt -A FUD_IN -s "$n" -j ACCEPT ${comment("datadog (rule 14.v)")}
-done
 ${rs.allows.flatMap(iptAllow).join("\n")}
 ${rs.policy.logDrops ? `ipt -A FUD_IN -m limit --limit 10/s -j LOG --log-prefix "fud-moat drop: "\n` : ""}ipt -A FUD_IN -j DROP
 while ipt -D INPUT -j FUD_IN 2>/dev/null; do :; done

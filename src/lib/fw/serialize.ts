@@ -41,15 +41,12 @@ export function parseTopology(v: unknown): Topology {
   };
   const trusted = Array.isArray(t.trusted) ? t.trusted : [];
   if (!trusted.every((x) => x && isStr(x.cidr) && isStr(x.why))) throw new Error("trusted ranges are broken");
-  const syslog = t.syslog;
-  if (syslog && !(isStr(syslog.from) && isStr(syslog.to) && isStr(syslog.ports))) throw new Error("syslog is broken");
   return {
     name: isStr(t.name) ? t.name : "imported",
     team: Number.isInteger(t.team) ? (t.team as number) : 1,
     scope: strs(t.scope ?? [], "scope"),
     trusted,
     adminSources: strs(t.adminSources ?? [], "admin sources"),
-    syslog: syslog ?? null,
     boxes: t.boxes.map(box),
   };
 }

@@ -35,11 +35,6 @@ export function nftRuleset(rs: RuleSet) {
   return `add table inet fud_moat
 delete table inet fud_moat
 table inet fud_moat {
-  set datadog {
-    type ipv4_addr; flags interval; auto-merge
-    elements = ${set(rs.datadog)}
-  }
-
   chain input {
     type filter hook input priority -10; policy drop;
     iif "lo" accept
@@ -47,7 +42,6 @@ table inet fud_moat {
     ct state invalid drop
     icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept
     ${trusted.join("\n    ")}
-    ip saddr @datadog accept comment "datadog (rule 14.v)"
     ${rs.allows.map(nftAllow).join("\n    ")}
 ${rs.policy.logDrops ? `    limit rate 10/second log prefix "fud-moat drop: "\n` : ""}  }
 }`;

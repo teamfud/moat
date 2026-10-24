@@ -81,10 +81,7 @@ firewall-cmd --zone="$Z" --list-rich-rules | while IFS= read -r r; do
   if [ -n "$r" ]; then fw --zone="$Z" --remove-rich-rule="$r"; fi
 done
 
-${rs.trusted.map((t) => `fw --zone=trusted --add-source=${t.cidr}  # trusted: ${t.why}`).join("\n")}
-for n in ${rs.datadog.join(" ")}; do
-  fw --zone=trusted --add-source="$n" || echo "  couldn't trust datadog $n (in another zone?)"
-done
+${rs.trusted.map((t) => `fw --zone=trusted --add-source=${t.cidr} || echo "  couldn't trust ${t.cidr} (in another zone?)"  # ${t.why}`).join("\n")}
 ${rs.allows.flatMap(fwdAllow).join("\n")}
 ${startTimer(rs.policy.rollbackMinutes)}`;
 
@@ -101,8 +98,8 @@ ${cancelTimer}sh "$B/rollback.sh"
 
   const notes = [
     "changes are runtime only until keep it. the rollback restores /etc/firewalld from the backup made on the first run and reloads",
-    "trusted ranges and datadog go in the trusted zone, which accepts everything from them",
-    "forward ports and masquerade aren't touched (rule 10)",
+    "trusted ranges go in the trusted zone, which accepts everything from them",
+    "forward ports and masquerade aren't touched, so port forwards for scored services keep working",
     `logging denied packets needs a reload, so it's left out. after keep it: firewall-cmd --set-log-denied=unicast`,
   ];
   return {

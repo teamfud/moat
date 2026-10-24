@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { checkBox } from "../guardrails";
 import { DEFAULT_POLICY, OS_TARGETS, type Topology } from "../model";
-import { DATADOG } from "../plan";
 import { IRSEC_2026 } from "../presets/irsec2026";
 import { renderBlocks, renderRules } from "./index";
 
-const topo: Topology = { ...IRSEC_2026, team: 3 };
+const topo: Topology = { ...IRSEC_2026, team: 3, trusted: [{ cidr: "172.16.1.0/24", why: "management network" }] };
 const box = (name: string) => topo.boxes.find((b) => b.name === name)!;
 const combos = topo.boxes.flatMap((b) => OS_TARGETS[b.os].map((t) => [b, t] as const));
 
@@ -17,12 +16,10 @@ describe("renderRules", () => {
   });
 
   it.each(combos.filter(([b]) => b.os !== "pfsense").map(([b, t]) => [b.name, t, b] as const))(
-    "%s × %s keeps the mgmt net, datadog and every scored port open",
+    "%s × %s keeps trusted ranges and every scored port open",
     (_n, t, b) => {
       const body = renderRules(b, topo, DEFAULT_POLICY, t).apply.body;
       expect(body).toContain("172.16.1.0/24");
-      expect(body).toContain(DATADOG.ipv4[0]);
-      expect(body).toContain(DATADOG.ipv4.at(-1)!);
       for (const s of b.scored) {
         if (s.proto === "icmp") continue;
         for (const p of s.ports.split(",")) {
@@ -34,10 +31,10 @@ describe("renderRules", () => {
     },
   );
 
-  it("opens 514 from barrier on timing (rule 14.vi)", () => {
+  it("opens syslog on timing to the scope ranges", () => {
     for (const t of OS_TARGETS.ubuntu) {
       const body = renderRules(box("timing"), topo, DEFAULT_POLICY, t).apply.body;
-      expect(body).toContain("10.3.1.254");
+      expect(body).toContain("192.168.3.0/24");
       expect(body).toMatch(/514/);
     }
   });
@@ -64,7 +61,7 @@ describe("renderRules", () => {
     const out = renderRules(box("barrier"), topo, DEFAULT_POLICY, "pfsense");
     expect(out.apply.lang).toBe("text");
     expect(out.keep).toBeUndefined();
-    expect(out.apply.body).toContain("192.168.3.4:514");
+    expect(out.apply.body).toContain("172.16.1.0/24");
   });
 });
 

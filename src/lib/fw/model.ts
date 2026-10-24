@@ -34,14 +34,12 @@ export type Trusted = { cidr: string; why: string };
 export type Topology = {
   name: string;
   team: number;
-  /** In-scope ranges (packet rule 14.a), as templates. */
+  /** In-scope ranges (ur team's networks), as templates. */
   scope: string[];
-  /** Never blocked, always allowed in (mgmt net etc), as templates. */
+  /** Never blocked, always allowed in (mgmt network, monitoring, …), as templates. */
   trusted: Trusted[];
   /** Where admin access ("admin" services) is allowed from. */
   adminSources: string[];
-  /** Log shipping that must stay open (rule 14.vi), by box name. */
-  syslog: { from: string; to: string; ports: string } | null;
   boxes: Box[];
 };
 

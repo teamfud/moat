@@ -1,30 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { checkBlock, checkBox, checkTopology } from "./guardrails";
 import { DEFAULT_POLICY, type Topology } from "./model";
-import { DATADOG } from "./plan";
 import { IRSEC_2026 } from "./presets/irsec2026";
 
-const topo: Topology = { ...IRSEC_2026, team: 3 };
+const topo: Topology = { ...IRSEC_2026, team: 3, trusted: [{ cidr: "172.16.1.0/24", why: "management network" }] };
 const box = (name: string) => topo.boxes.find((b) => b.name === name)!;
 
 describe("checkBlock", () => {
-  it("refuses subnets (rule 15)", () => {
+  it("refuses subnets", () => {
     const v = checkBlock("10.3.1.0/24", topo);
     expect(v.level).toBe("error");
-    expect(v.msg).toContain("rule 15");
+    expect(v.msg).toContain("single ips only");
     expect(checkBlock("6.6.6.0/31", topo).level).toBe("error");
   });
 
-  it("refuses the management network (rule 14)", () => {
+  it("refuses trusted ranges", () => {
     const v = checkBlock("172.16.1.5", topo);
     expect(v.level).toBe("error");
     expect(v.msg).toContain("management network");
-  });
-
-  it("refuses datadog ips", () => {
-    const first = DATADOG.ipv4[0].split("/")[0];
-    expect(checkBlock(first, topo)).toMatchObject({ level: "error" });
-    expect(checkBlock(first, topo).msg).toContain("datadog");
   });
 
   it("refuses our own boxes, including barrier and timing", () => {
@@ -64,9 +57,9 @@ describe("checkTopology", () => {
     expect(msgs.some((m) => m.includes("scope range"))).toBe(true);
   });
 
-  it("needs both syslog ends", () => {
-    const bad: Topology = { ...topo, boxes: topo.boxes.filter((b) => b.name !== "timing") };
-    expect(checkTopology(bad).some((f) => f.level === "error" && f.msg.includes("timing"))).toBe(true);
+  it("nudges u to add trusted ranges", () => {
+    expect(checkTopology({ ...topo, trusted: [] })).toContainEqual(expect.objectContaining({ level: "warn", msg: expect.stringContaining("no trusted ranges") }));
+    expect(checkTopology({ ...topo, trusted: [], boxes: [] })).toEqual([]);
   });
 });
 

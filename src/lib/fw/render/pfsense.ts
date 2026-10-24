@@ -4,27 +4,22 @@ import type { ResolvedBox, RuleSet } from "../plan";
 import { header, script, type BlocksOutput, type RulesOutput } from "./common";
 
 /**
- * pfSense only gets a checklist for hardening. Its NAT and pass rules are the
- * scored topology (rule 10), so a script rewriting them is how u lose uptime.
+ * pfSense only gets a checklist for hardening. Its NAT and pass rules carry
+ * the scored services, so a script rewriting them is how u lose uptime.
  */
-export function pfRules(rs: RuleSet, topo: Topology): RulesOutput {
-  const syslogTo = topo.syslog && topo.syslog.from === rs.box.name ? topo.boxes.find((b) => b.name === topo.syslog!.to) : undefined;
-  const apply = `${header(rs.box, "pfsense", "checklist")}# barrier doesn't get a rules script: its nat + pass rules are the scored topology (rule 10).
+export function pfRules(rs: RuleSet): RulesOutput {
+  const apply = `${header(rs.box, "pfsense", "checklist")}# ${rs.box.name} doesn't get a rules script: its nat + pass rules carry the scored services.
 # go through this in the webgui instead. ip blocks are on the quick block page.
 
 [ ] firewall > rules > wan: look for pass rules with source "any" that weren't there at the start.
     disable them (don't delete, so u can show white team). leave the port forward rules alone.
-[ ] firewall > nat > port forward: compare against the packet. don't change anything scored, ask white team.
+[ ] firewall > nat > port forward: compare against the comp docs. don't change anything scored, ask white team.
 [ ] firewall > rules > lan: the anti-lockout rule and "default allow lan to any" should be the only defaults.
 [ ] system > advanced > admin access: webgui and ssh not reachable from wan. ssh key-only if u keep it on.
-[ ] system > user manager: unknown users or keys? check them (don't touch whiteteam, rule 6).
+[ ] system > user manager: unknown users or keys? check them (leave any white team / scoring accounts alone).
 [ ] diagnostics > command prompt / ssh: \`pfctl -sr | head -50\` to see what's actually loaded.
-${
-  syslogTo
-    ? `[ ] status > system logs > settings: remote logging to ${fill(syslogTo.addr, topo.team)}:${topo.syslog!.ports} stays on, and the syslog-ng service keeps running (rule 14.vi).\n`
-    : ""
-}[ ] trusted ranges must never be blocked: ${rs.trusted.map((t) => t.cidr).join(", ")}. neither can any datadog ip (rule 14.v).
-`;
+[ ] status > system logs > settings: if remote logging is set up, leave it on.
+${rs.trusted.length ? `[ ] trusted ranges must never be blocked: ${rs.trusted.map((t) => t.cidr).join(", ")}.\n` : ""}`;
   return {
     apply: script(rs.box, "pfsense", "checklist", apply, "text"),
     notes: ["pfctl-only changes are wiped on the next filter reload, so blocks use easyrule, which writes them into config.xml"],

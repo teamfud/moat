@@ -59,7 +59,6 @@ function Allow([string]$Name, [hashtable]$P) {
   New-NetFirewallRule -Group $G -DisplayName $Name -Direction Inbound -Action Allow -Profile Any @P | Out-Null
 }
 ${rs.trusted.map((t) => `Allow 'fud-moat trusted: ${safe(t.why)}' @{ RemoteAddress = ${list([t.cidr])} }`).join("\n")}
-Allow 'fud-moat datadog (rule 14.v)' @{ RemoteAddress = ${list(rs.datadog)} }
 ${rs.allows.map(psAllow).join("\n")}
 
 # turn off every other inbound allow rule (core networking stays), and remember them for the rollback

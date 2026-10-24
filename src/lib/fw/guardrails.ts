@@ -1,14 +1,11 @@
 import { contains, fill, formatIp, parseCidr, type Cidr } from "./ip";
 import { OS_TARGETS, type Box, type Policy, type Target, type Topology } from "./model";
-import { DATADOG } from "./plan";
 import { parsePorts } from "./ports";
 
 export type Finding = { level: "error" | "warn"; msg: string };
 
 const err = (msg: string): Finding => ({ level: "error", msg });
 const warn = (msg: string): Finding => ({ level: "warn", msg });
-
-const datadogCidrs = DATADOG.ipv4.map((c) => parseCidr(c)).filter((c): c is Cidr => c !== null);
 
 const cidrs = (templates: string[], team: number) =>
   templates.map((s) => parseCidr(fill(s, team))).filter((c): c is Cidr => c !== null);
@@ -38,12 +35,8 @@ export function checkTopology(topo: Topology): Finding[] {
   }
   for (const [n, count] of names) if (count > 1) out.push(err(`there are ${count} boxes called "${n}"`));
 
-  if (topo.syslog) {
-    for (const end of [topo.syslog.from, topo.syslog.to]) {
-      if (!topo.boxes.some((b) => b.name === end)) out.push(err(`syslog box "${end}" isn't in the topology`));
-    }
-    const p = parsePorts(topo.syslog.ports);
-    if (typeof p === "string") out.push(err(`syslog ports: ${p}`));
+  if (topo.boxes.length && topo.trusted.length === 0) {
+    out.push(warn("no trusted ranges. if ur comp has a management, scoring or monitoring network, add it so it never gets blocked"));
   }
   return out;
 }
@@ -87,13 +80,13 @@ export function checkBox(box: Box, topo: Topology, target: Target, policy: Polic
 
 export type BlockVerdict = { input: string; ip: string | null; level: "ok" | "warn" | "error"; msg: string };
 
-/** Can this address be blocked under the packet rules? */
+/** Can this address be blocked safely? */
 export function checkBlock(input: string, topo: Topology): BlockVerdict {
   const raw = input.trim();
   const c = parseCidr(raw);
   const v = (level: BlockVerdict["level"], msg: string, ip: string | null = null): BlockVerdict => ({ input: raw, ip, level, msg });
   if (!c) return v("error", "not an ipv4 address");
-  if (c.prefix < 32) return v("error", `${raw} is a subnet. rule 15 says single ips only`);
+  if (c.prefix < 32) return v("error", `${raw} is a subnet. single ips only: subnet blocks take out scoring and teammates, and most comps ban them`);
 
   const ip = formatIp(c.base);
   const first = c.base >>> 24;
@@ -101,15 +94,14 @@ export function checkBlock(input: string, topo: Topology): BlockVerdict {
 
   for (const tr of topo.trusted) {
     const t = parseCidr(fill(tr.cidr, topo.team));
-    if (t && contains(t, c)) return v("error", `${ip} is in the ${tr.why}. never block it`);
+    if (t && contains(t, c)) return v("error", `${ip} is in a trusted range (${tr.why}). never block it`);
   }
-  if (datadogCidrs.some((d) => contains(d, c))) return v("error", `${ip} is a datadog ip. rule 14.v says never block those`);
 
   const own = topo.boxes.find((b) => fill(b.addr, topo.team) === ip);
   if (own) return v("error", `that's ${own.name}, ur own box`);
 
   if (!cidrs(topo.scope, topo.team).some((s) => contains(s, c))) {
-    return v("warn", "outside ur scope ranges. rule 14 calls anything unlisted out of scope and rule 15 bans blocking out of scope ips. ask white team first", ip);
+    return v("warn", "outside ur scope ranges. lots of comps ban blocking out of scope ips, so check the rules or ask white team first", ip);
   }
   return v("ok", "single in-scope ip, good to block", ip);
 }

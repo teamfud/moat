@@ -1,6 +1,7 @@
 import type { Box, Service, Topology } from "../model";
 
-// From the IRSeC 2026 blue team packet ("network topology" and rule 14).
+// The boxes from IRSeC 2026, as a starting point. Trusted ranges are left
+// empty: those depend on the comp, so add them on the boxes page.
 
 const tcp = (label: string, ports: string, from: Service["from"] = "any"): Service => ({ label, proto: "tcp", ports, from });
 const udp = (label: string, ports: string, from: Service["from"] = "any"): Service => ({ label, proto: "udp", ports, from });
@@ -20,9 +21,8 @@ export const IRSEC_2026: Topology = {
   name: "irsec 2026",
   team: 1,
   scope: ["10.{x}.1.0/24", "192.168.{x}.0/24"],
-  trusted: [{ cidr: "172.16.1.0/24", why: "management network (rule 14.b.i)" }],
+  trusted: [],
   adminSources: ["10.{x}.1.0/24"],
-  syslog: { from: "barrier", to: "timing", ports: "514" },
   boxes: [
     box({
       name: "barrier",
@@ -30,7 +30,7 @@ export const IRSEC_2026: Topology = {
       os: "pfsense",
       scored: [],
       extra: [],
-      notes: "external 172.20.1.{x}. keep syslog-ng to timing:514 running (rule 14)",
+      notes: "external 172.20.1.{x}",
     }),
     box({
       name: "pitwall",
@@ -96,7 +96,7 @@ export const IRSEC_2026: Topology = {
         tcp("wazuh api", "55000", "admin"),
         ...linuxAdmin,
       ],
-      notes: "wazuh. logging infra is out of scope, port 514 must stay open (rule 14.vi)",
+      notes: "wazuh. syslog on 514 has to stay open for the other boxes",
     }),
   ],
 };

@@ -25,7 +25,7 @@ export function renderRules(box: Box, topo: Topology, policy: Policy, target: Ta
     case "firewalld":
       return fwdRules(rs);
     case "pfsense":
-      return pfRules(rs, topo);
+      return pfRules(rs);
   }
 }
 

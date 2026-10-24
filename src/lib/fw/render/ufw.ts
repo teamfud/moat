@@ -61,10 +61,6 @@ ufw --force reset >/dev/null
 ufw default deny incoming >/dev/null
 ufw default allow outgoing >/dev/null
 ${rs.trusted.map((t) => `ufw allow from ${t.cidr} comment 'trusted: ${safe(t.why)}' >/dev/null`).join("\n")}
-echo "adding ${rs.datadog.length} datadog ranges, takes a sec…"
-for n in ${rs.datadog.join(" ")}; do
-  ufw allow from "$n" comment 'datadog (rule 14.v)' >/dev/null
-done
 ${rs.allows.flatMap(ufwAllow).join("\n")}
 ufw logging ${rs.policy.logDrops ? "low" : "off"} >/dev/null
 ufw --force enable >/dev/null

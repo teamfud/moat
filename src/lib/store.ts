@@ -2,7 +2,6 @@
 
 import { useSyncExternalStore } from "react";
 import { DEFAULT_POLICY, type Policy, type Target, type Topology } from "@/lib/fw/model";
-import { IRSEC_2026 } from "@/lib/fw/presets/irsec2026";
 import { parseTopology } from "@/lib/fw/serialize";
 
 /**
@@ -19,7 +18,8 @@ export type State = {
 };
 
 const KEY = "fud-moat:v1";
-const initial: State = { topo: IRSEC_2026, policy: DEFAULT_POLICY, targets: {}, blockInput: "", whiteTeamOk: false };
+const EMPTY: Topology = { name: "untitled", team: 1, scope: [], trusted: [], adminSources: [], boxes: [] };
+const initial: State = { topo: EMPTY, policy: DEFAULT_POLICY, targets: {}, blockInput: "", whiteTeamOk: false };
 
 let state: State | null = null;
 const listeners = new Set<() => void>();
