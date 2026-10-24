@@ -58,7 +58,7 @@ Get-NetFirewallRule -Group $G -ErrorAction SilentlyContinue | Remove-NetFirewall
 function Allow([string]$Name, [hashtable]$P) {
   New-NetFirewallRule -Group $G -DisplayName $Name -Direction Inbound -Action Allow -Profile Any @P | Out-Null
 }
-${rs.trusted.map((t) => `Allow 'fud-moat trusted: ${safe(t.why)}' @{ RemoteAddress = ${list([t.cidr])} }`).join("\n")}
+${rs.trusted.map((t) => `Allow 'fud-moat trusted: ${safe(t.why)}' @{ RemoteAddress = ${list(t.cidrs)} }`).join("\n")}
 ${rs.allows.map(psAllow).join("\n")}
 
 # turn off every other inbound allow rule (core networking stays), and remember them for the rollback

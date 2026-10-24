@@ -48,7 +48,13 @@ ipt -F FUD_IN
 ipt -A FUD_IN -i lo -j ACCEPT
 ipt -A FUD_IN -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ipt -A FUD_IN -m conntrack --ctstate INVALID -j DROP
-${rs.trusted.map((t) => `ipt -A FUD_IN -s ${t.cidr} -j ACCEPT ${comment(`trusted: ${t.why}`)}`).join("\n")}
+${rs.trusted
+  .map((t) =>
+    t.cidrs.length === 1
+      ? `ipt -A FUD_IN -s ${t.cidrs[0]} -j ACCEPT ${comment(`trusted: ${t.why}`)}`
+      : `for n in ${t.cidrs.join(" ")}; do\n  ipt -A FUD_IN -s "$n" -j ACCEPT ${comment(`trusted: ${t.why}`)}\ndone`,
+  )
+  .join("\n")}
 ${rs.allows.flatMap(iptAllow).join("\n")}
 ${rs.policy.logDrops ? `ipt -A FUD_IN -m limit --limit 10/s -j LOG --log-prefix "fud-moat drop: "\n` : ""}ipt -A FUD_IN -j DROP
 while ipt -D INPUT -j FUD_IN 2>/dev/null; do :; done
@@ -120,7 +126,7 @@ export function iptBlocks(box: ResolvedBox, ips: string[]): BlocksOutput {
     "$B/blocks.sh",
     IPT_BLOCKS_SH("INPUT OUTPUT FORWARD DOCKER-USER"),
   )}sh "$B/blocks.sh"
-${action === "block" ? killSessions(ips) : ""}`;
+${installUnit}${action === "block" ? killSessions(ips) : ""}`;
   return {
     block: script(box, "iptables", "block", body("block")),
     unblock: script(box, "iptables", "unblock", body("unblock")),

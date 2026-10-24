@@ -19,7 +19,11 @@ export function pfRules(rs: RuleSet): RulesOutput {
 [ ] system > user manager: unknown users or keys? check them (leave any white team / scoring accounts alone).
 [ ] diagnostics > command prompt / ssh: \`pfctl -sr | head -50\` to see what's actually loaded.
 [ ] status > system logs > settings: if remote logging is set up, leave it on.
-${rs.trusted.length ? `[ ] trusted ranges must never be blocked: ${rs.trusted.map((t) => t.cidr).join(", ")}.\n` : ""}`;
+${
+  rs.trusted.length
+    ? `[ ] these must never be blocked: ${rs.trusted.map((t) => `${t.why} (${t.cidrs.length > 3 ? `${t.cidrs.length} ranges` : t.cidrs.join(", ")})`).join(", ")}.\n`
+    : ""
+}`;
   return {
     apply: script(rs.box, "pfsense", "checklist", apply, "text"),
     notes: ["pfctl-only changes are wiped on the next filter reload, so blocks use easyrule, which writes them into config.xml"],

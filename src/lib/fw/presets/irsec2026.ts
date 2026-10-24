@@ -1,7 +1,9 @@
 import type { Box, Service, Topology } from "../model";
+import datadog from "./irsec2026-datadog.json";
 
-// The boxes from IRSeC 2026, as a starting point. Trusted ranges are left
-// empty: those depend on the comp, so add them on the boxes page.
+// The IRSeC 2026 boxes plus the traffic its rules say must never be blocked:
+// the management network and DataDog's ranges (npm run update-datadog).
+// Ports the packet doesn't spell out are guesses, flagged in the box notes.
 
 const tcp = (label: string, ports: string, from: Service["from"] = "any"): Service => ({ label, proto: "tcp", ports, from });
 const udp = (label: string, ports: string, from: Service["from"] = "any"): Service => ({ label, proto: "udp", ports, from });
@@ -21,7 +23,10 @@ export const IRSEC_2026: Topology = {
   name: "irsec 2026",
   team: 1,
   scope: ["10.{x}.1.0/24", "192.168.{x}.0/24"],
-  trusted: [],
+  trusted: [
+    { cidr: "172.16.1.0/24", why: "management network" },
+    ...datadog.ipv4.map((cidr) => ({ cidr, why: "datadog" })),
+  ],
   adminSources: ["10.{x}.1.0/24"],
   boxes: [
     box({
@@ -51,9 +56,16 @@ export const IRSEC_2026: Topology = {
         tcp("rpc dynamic", "49152-65535"),
       ],
       extra: winAdmin,
-      notes: "ad + dns, scored separately",
+      notes: "ad + dns, scored separately. rpc dynamic 49152-65535 is open to anyone, since ad needs it and the scorer's ips aren't known",
     }),
-    box({ name: "teamradio", addr: "10.{x}.1.2", os: "windows", scored: [tcp("winrm", "5985-5986")], extra: [tcp("rdp", "3389", "admin"), ping] }),
+    box({
+      name: "teamradio",
+      addr: "10.{x}.1.2",
+      os: "windows",
+      scored: [tcp("winrm", "5985-5986")],
+      extra: [tcp("rdp", "3389", "admin"), ping],
+      notes: "guessed both winrm ports. check which one the scorer hits",
+    }),
     box({
       name: "safetycar",
       addr: "10.{x}.1.3",
@@ -81,7 +93,14 @@ export const IRSEC_2026: Topology = {
       notes: "irc server + bot in docker compose. check `docker compose ps` for the real ports",
     }),
     box({ name: "transporters", addr: "192.168.{x}.1", os: "windows", scored: [tcp("smb", "445")], extra: winAdmin }),
-    box({ name: "stewards", addr: "192.168.{x}.2", os: "windows", scored: [tcp("iis", "80,443")], extra: winAdmin }),
+    box({
+      name: "stewards",
+      addr: "192.168.{x}.2",
+      os: "windows",
+      scored: [tcp("iis", "80,443")],
+      extra: winAdmin,
+      notes: "guessed 80 and 443. check the iis bindings",
+    }),
     box({ name: "scrutineering", addr: "192.168.{x}.3", os: "rocky", scored: [tcp("mariadb", "3306")], extra: linuxAdmin }),
     box({
       name: "timing",

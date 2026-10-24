@@ -60,7 +60,13 @@ ${writeFile("$B/rollback.sh", ROLLBACK)}
 ufw --force reset >/dev/null
 ufw default deny incoming >/dev/null
 ufw default allow outgoing >/dev/null
-${rs.trusted.map((t) => `ufw allow from ${t.cidr} comment 'trusted: ${safe(t.why)}' >/dev/null`).join("\n")}
+${rs.trusted
+  .map((t) =>
+    t.cidrs.length === 1
+      ? `ufw allow from ${t.cidrs[0]} comment 'trusted: ${safe(t.why)}' >/dev/null`
+      : `echo "adding ${t.cidrs.length} ${safe(t.why)} ranges, takes a sec…"\nfor n in ${t.cidrs.join(" ")}; do\n  ufw allow from "$n" comment 'trusted: ${safe(t.why)}' >/dev/null\ndone`,
+  )
+  .join("\n")}
 ${rs.allows.flatMap(ufwAllow).join("\n")}
 ufw logging ${rs.policy.logDrops ? "low" : "off"} >/dev/null
 ufw --force enable >/dev/null
@@ -96,7 +102,7 @@ export function ufwBlocks(box: ResolvedBox, ips: string[]): BlocksOutput {
     "$B/blocks.sh",
     IPT_BLOCKS_SH("INPUT OUTPUT FORWARD DOCKER-USER"),
   )}sh "$B/blocks.sh"
-${action === "block" ? killSessions(ips) : ""}`;
+${installUnit}${action === "block" ? killSessions(ips) : ""}`;
   return {
     block: script(box, "ufw", "block", body("block")),
     unblock: script(box, "ufw", "unblock", body("unblock")),

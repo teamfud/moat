@@ -4,13 +4,13 @@ import { useRef, useState } from "react";
 import { checkTopology } from "@/lib/fw/guardrails";
 import { fill } from "@/lib/fw/ip";
 import { OS_LABELS, type Box, type Service, type Topology } from "@/lib/fw/model";
-import { IRSEC_2026 } from "@/lib/fw/presets/irsec2026";
 import { parseTopology } from "@/lib/fw/serialize";
 import { download } from "@/lib/download";
 import { setTopo, useHydrated, useStore } from "@/lib/store";
 import { BoxEditor } from "@/components/BoxEditor";
 import { Findings } from "@/components/Findings";
 import { Modal } from "@/components/Modal";
+import { PresetPicker } from "@/components/PresetPicker";
 import { useConfirm } from "@/components/useConfirm";
 import { Badge, Button, Card, FormMessage, Label, PageHeader, Textarea, Th, theadClass } from "@/components/ui";
 
@@ -57,6 +57,7 @@ function Ranges({ topo }: { topo: Topology }) {
 export default function BoxesPage() {
   const { topo } = useStore();
   const [editing, setEditing] = useState<Box | null>(null);
+  const [picking, setPicking] = useState(false);
   const [msg, setMsg] = useState<{ ok?: string; error?: string } | null>(null);
   const [confirm, confirmDialog] = useConfirm();
   const file = useRef<HTMLInputElement>(null);
@@ -88,7 +89,7 @@ export default function BoxesPage() {
   return (
     <>
       <PageHeader title="boxes" sub={`${topo.name} · team ${topo.team} · {x} in an address is the team number`}>
-        <Button variant="secondary" onClick={() => replace({ ...IRSEC_2026, team: topo.team, trusted: topo.trusted }, "the irsec 2026 boxes")}>
+        <Button variant="secondary" onClick={() => setPicking(true)}>
           load preset
         </Button>
         <Button variant="secondary" onClick={() => file.current?.click()}>
@@ -124,7 +125,7 @@ export default function BoxesPage() {
 
         <Card className="overflow-x-auto">
           {topo.boxes.length === 0 ? (
-            <p className="p-10 text-center text-muted">no boxes yet. load the preset?</p>
+            <p className="p-10 text-center text-muted">no boxes yet. load a preset?</p>
           ) : (
             <table className="w-full min-w-[760px] text-left">
               <thead className={theadClass}>
@@ -176,6 +177,18 @@ export default function BoxesPage() {
         </Card>
       </div>
 
+      <Modal open={picking} onClose={() => setPicking(false)} title="load a preset">
+        <PresetPicker
+          replacing={topo.boxes.length}
+          onCancel={() => setPicking(false)}
+          onLoad={(p) => {
+            setTopo(() => ({ ...p.topology, team: topo.team }));
+            setGen((g) => g + 1);
+            setPicking(false);
+            setMsg({ ok: `loaded ${p.name} :)` });
+          }}
+        />
+      </Modal>
       <Modal open={!!editing} onClose={() => setEditing(null)} title={editing?.name ? `edit ${editing.name}` : "new box"} wide>
         {editing && <BoxEditor initial={editing} onSave={save} onCancel={() => setEditing(null)} />}
       </Modal>

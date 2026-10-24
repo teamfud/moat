@@ -1,12 +1,9 @@
 import { formatRange } from "../ports";
 import type { Allow, ResolvedBox, RuleSet } from "../plan";
+import { nftBlocks } from "./nftables";
 import {
-  blockPrelude,
   cancelTimer,
   DIR,
-  editBlockList,
-  killSessions,
-  READ_BLOCKED,
   script,
   shPrelude,
   startTimer,
@@ -81,7 +78,9 @@ firewall-cmd --zone="$Z" --list-rich-rules | while IFS= read -r r; do
   if [ -n "$r" ]; then fw --zone="$Z" --remove-rich-rule="$r"; fi
 done
 
-${rs.trusted.map((t) => `fw --zone=trusted --add-source=${t.cidr} || echo "  couldn't trust ${t.cidr} (in another zone?)"  # ${t.why}`).join("\n")}
+${rs.trusted
+  .map((t) => `# trusted: ${t.why}\nfor n in ${t.cidrs.join(" ")}; do\n  fw --zone=trusted --add-source="$n" || echo "  couldn't trust $n (in another zone?)"\ndone`)
+  .join("\n")}
 ${rs.allows.flatMap(fwdAllow).join("\n")}
 ${startTimer(rs.policy.rollbackMinutes)}`;
 
@@ -110,33 +109,5 @@ ${cancelTimer}sh "$B/rollback.sh"
   };
 }
 
-const FWD_BLOCKS_SH = `#!/bin/sh
-# fud moat ip blocks for firewalld, from ${DIR}/blocked.txt. runtime + permanent so a reload keeps them.
-set -eu
-for ip in $(${READ_BLOCKED}); do
-  for p in "" --permanent; do
-    firewall-cmd -q $p --zone=drop --add-source="$ip" 2>/dev/null || true
-    firewall-cmd -q $p --direct --add-rule ipv4 filter OUTPUT 0 -d "$ip" -j DROP 2>/dev/null || true
-  done
-done
-echo "✓ $(${READ_BLOCKED} | grep -c . || true) ip(s) blocked on $(hostname)"`;
-
-export function fwdBlocks(box: ResolvedBox, ips: string[]): BlocksOutput {
-  const body = (action: "block" | "unblock") => `${blockPrelude(box, "firewalld", action, ips)}${editBlockList(ips, action)}${
-    action === "unblock"
-      ? `for ip in ${ips.join(" ")}; do
-  for p in "" --permanent; do
-    firewall-cmd -q $p --zone=drop --remove-source="$ip" 2>/dev/null || true
-    firewall-cmd -q $p --direct --remove-rule ipv4 filter OUTPUT 0 -d "$ip" -j DROP 2>/dev/null || true
-  done
-done
-`
-      : ""
-  }${writeFile("$B/blocks.sh", FWD_BLOCKS_SH)}sh "$B/blocks.sh"
-${action === "block" ? killSessions(ips) : ""}`;
-  return {
-    block: script(box, "firewalld", "block", body("block")),
-    unblock: script(box, "firewalld", "unblock", body("unblock")),
-    notes: ["inbound blocks put the ip in the drop zone. outbound uses a direct rule. both are runtime + permanent"],
-  };
-}
+/** Blocks go in their own nft table, see nftBlocks. */
+export const fwdBlocks = (box: ResolvedBox, ips: string[]): BlocksOutput => nftBlocks(box, ips, "firewalld");

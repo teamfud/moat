@@ -3,7 +3,7 @@ import { checkBlock, checkBox, checkTopology } from "./guardrails";
 import { DEFAULT_POLICY, type Topology } from "./model";
 import { IRSEC_2026 } from "./presets/irsec2026";
 
-const topo: Topology = { ...IRSEC_2026, team: 3, trusted: [{ cidr: "172.16.1.0/24", why: "management network" }] };
+const topo: Topology = { ...IRSEC_2026, team: 3 };
 const box = (name: string) => topo.boxes.find((b) => b.name === name)!;
 
 describe("checkBlock", () => {
@@ -18,6 +18,11 @@ describe("checkBlock", () => {
     const v = checkBlock("172.16.1.5", topo);
     expect(v.level).toBe("error");
     expect(v.msg).toContain("management network");
+  });
+
+  it("refuses the preset's datadog ranges", () => {
+    const dd = IRSEC_2026.trusted.find((t) => t.why === "datadog")!.cidr.split("/")[0];
+    expect(checkBlock(dd, topo)).toMatchObject({ level: "error", msg: expect.stringContaining("datadog") });
   });
 
   it("refuses our own boxes, including barrier and timing", () => {

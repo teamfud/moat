@@ -2,7 +2,7 @@
 
 Firewall rule generator for [team fud](https://fud.team) in Red vs Blue competitions. Describe your boxes, pick one, and paste the script it gives you. Guardrails stop it from producing scripts that lock out scoring, white team or your own teammates.
 
-Write addresses as templates like `10.{x}.1.4` and set the team number in the header to fill them in. The IRSeC 2026 boxes ship as a preset to start from. Everything is saved in your browser's localStorage. Use export / import to share a topology with teammates.
+Write addresses as templates like `10.{x}.1.4` and set the team number in the header to fill them in. Pick a preset to start from (just IRSeC 2026 for now). Everything is saved in your browser's localStorage. Use export / import to share a topology with teammates.
 
 ## What it does
 
@@ -17,6 +17,16 @@ Write addresses as templates like `10.{x}.1.4` and set the team number in the he
   | pfSense | a checklist, not a script: its NAT and pass rules carry the scored services |
 - **Quick block**: paste red team IPs and get block/unblock commands for every box, including `easyrule` on pfSense. Blocks live apart from the hardening rules (`fud_moat_block`, `FUD_BLOCK`, `fud-moat-block`), so a rollback never unblocks anyone.
 - **Guardrails**: what moat won't let you do, and why.
+
+## Presets
+
+Presets live in `src/lib/fw/presets/`. Add one to `PRESETS` in `index.ts` and it shows up in the picker. Loading a preset replaces the whole topology except the team number.
+
+The IRSeC 2026 preset includes its management network and DataDog's ranges as trusted, since that comp requires both to stay reachable. Refresh the DataDog list before the comp, then commit:
+
+```bash
+npm run update-datadog
+```
 
 ## Lockout insurance
 

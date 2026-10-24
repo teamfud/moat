@@ -31,11 +31,19 @@ export function nftAllow(a: Allow) {
 }
 
 export function nftRuleset(rs: RuleSet) {
-  const trusted = rs.trusted.map((t) => `ip saddr ${t.cidr} accept comment "trusted: ${safe(t.why)}"`);
+  // Named sets with auto-merge: a pasted list can overlap, which an anonymous set rejects.
+  const sets = rs.trusted.map(
+    (t, i) => `  set trusted_${i} {
+    type ipv4_addr; flags interval; auto-merge
+    elements = ${set(t.cidrs)}
+  }
+`,
+  );
+  const trusted = rs.trusted.map((t, i) => `ip saddr @trusted_${i} accept comment "trusted: ${safe(t.why)}"`);
   return `add table inet fud_moat
 delete table inet fud_moat
 table inet fud_moat {
-  chain input {
+${sets.join("")}  chain input {
     type filter hook input priority -10; policy drop;
     iif "lo" accept
     ct state established,related accept
@@ -124,12 +132,21 @@ table inet fud_moat_block {
 NFT
 echo "✓ $(echo "$IPS" | tr ',' '\\n' | grep -c . || true) ip(s) blocked on $(hostname)"`;
 
-export function nftBlocks(box: ResolvedBox, ips: string[]): BlocksOutput {
-  const body = (action: "block" | "unblock") => `${blockPrelude(box, "nftables", action, ips)}${editBlockList(ips, action)}${writeFile("$B/blocks.sh", BLOCKS_SH)}sh "$B/blocks.sh"
-${action === "block" ? killSessions(ips) : ""}`;
+/**
+ * Also used on firewalld boxes: firewalld leaves other nft tables alone, while
+ * its --direct rules take over iptables and wipe docker's (and anyone's) rules.
+ */
+export function nftBlocks(box: ResolvedBox, ips: string[], target: "nftables" | "firewalld" = "nftables"): BlocksOutput {
+  const body = (action: "block" | "unblock") => `${blockPrelude(box, target, action, ips)}command -v nft >/dev/null 2>&1 || { echo "✗ nft not found. apt install nftables (or dnf install nftables)"; exit 1; }
+${editBlockList(ips, action)}${writeFile("$B/blocks.sh", BLOCKS_SH)}sh "$B/blocks.sh"
+${installUnit}${action === "block" ? killSessions(ips) : ""}`;
   return {
-    block: script(box, "nftables", "block", body("block")),
-    unblock: script(box, "nftables", "unblock", body("unblock")),
-    notes: ["blocks live in table inet fud_moat_block, separate from the hardening rules, so a rollback never unblocks anyone"],
+    block: script(box, target, "block", body("block")),
+    unblock: script(box, target, "unblock", body("unblock")),
+    notes: [
+      target === "firewalld"
+        ? "blocks live in their own nft table (inet fud_moat_block), which firewalld reloads and rollbacks don't touch"
+        : "blocks live in table inet fud_moat_block, separate from the hardening rules, so a rollback never unblocks anyone",
+    ],
   };
 }

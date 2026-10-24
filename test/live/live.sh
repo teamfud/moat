@@ -26,6 +26,9 @@ echo "== $T on $BOX ($IMG) server $SIP client $CIP"
 expect $PORT open "before"; expect 9999 open "before"
 run $O/$BOX.$T.apply.sh
 expect $PORT open "applied"; expect 9999 closed "applied"
+# outbound + dns + replies: boxes pull tools from places like vault.fud.team
+vault() { docker exec $N curl -fsS -m 15 -o /dev/null "${VAULT_URL:-https://vault.fud.team/api/health}" && ok "$1: outbound https works" || bad "$1: outbound https failed"; }
+vault "applied"
 docker exec $N sh -c 'ping -c1 -W1 127.0.0.1 >/dev/null 2>&1 || nc -z -w1 127.0.0.1 9999' >/dev/null 2>&1 && ok "loopback still works" || ok "loopback (no ping/nc in image, skipped)"
 echo "  … waiting 70s for auto-rollback"; sleep 70
 expect 9999 open "after rollback"
@@ -37,6 +40,7 @@ sed "s/6\.6\.6\.6/$CIP/g" $O/$BOX.$T.block.sh > $TMP/moat-$T-block.sh
 sed "s/6\.6\.6\.6/$CIP/g" $O/$BOX.$T.unblock.sh > $TMP/moat-$T-unblock.sh
 run $TMP/moat-$T-block.sh
 expect $PORT closed "client blocked"
+vault "client blocked"
 run $TMP/moat-$T-unblock.sh
 expect $PORT open "client unblocked"
 run $TMP/moat-$T-block.sh

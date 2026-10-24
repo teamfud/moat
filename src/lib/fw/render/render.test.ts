@@ -4,7 +4,7 @@ import { DEFAULT_POLICY, OS_TARGETS, type Topology } from "../model";
 import { IRSEC_2026 } from "../presets/irsec2026";
 import { renderBlocks, renderRules } from "./index";
 
-const topo: Topology = { ...IRSEC_2026, team: 3, trusted: [{ cidr: "172.16.1.0/24", why: "management network" }] };
+const topo: Topology = { ...IRSEC_2026, team: 3 };
 const box = (name: string) => topo.boxes.find((b) => b.name === name)!;
 const combos = topo.boxes.flatMap((b) => OS_TARGETS[b.os].map((t) => [b, t] as const));
 
@@ -20,6 +20,7 @@ describe("renderRules", () => {
     (_n, t, b) => {
       const body = renderRules(b, topo, DEFAULT_POLICY, t).apply.body;
       expect(body).toContain("172.16.1.0/24");
+      for (const t of topo.trusted) expect(body).toContain(t.cidr);
       for (const s of b.scored) {
         if (s.proto === "icmp") continue;
         for (const p of s.ports.split(",")) {
@@ -63,6 +64,17 @@ describe("renderRules", () => {
     expect(out.keep).toBeUndefined();
     expect(out.apply.body).toContain("172.16.1.0/24");
   });
+});
+
+it("puts each trusted group in one windows rule", () => {
+  const body = renderRules(box("pitwall"), topo, DEFAULT_POLICY, "powershell").apply.body;
+  expect(body.match(/Allow 'fud-moat trusted: /g)).toHaveLength(2);
+});
+
+it("uses named, auto-merged nft sets for trusted groups", () => {
+  const body = renderRules(box("pitlane"), topo, DEFAULT_POLICY, "nftables").apply.body;
+  expect(body).toContain("set trusted_1 {");
+  expect(body).toContain('ip saddr @trusted_1 accept comment "trusted: datadog"');
 });
 
 describe("renderBlocks", () => {

@@ -17,7 +17,8 @@ export type Allow = {
 export type RuleSet = {
   box: ResolvedBox;
   policy: Policy;
-  trusted: { cidr: string; why: string }[];
+  /** Trusted ranges grouped by reason, so a long list is one rule, not hundreds. */
+  trusted: { why: string; cidrs: string[] }[];
   allows: Allow[];
 };
 
@@ -27,6 +28,12 @@ export function resolveBox(box: Box, team: number): ResolvedBox {
 
 export function resolveAll(topo: Topology) {
   return topo.boxes.map((b) => resolveBox(b, topo.team));
+}
+
+function groupTrusted(topo: Topology, team: number) {
+  const groups = new Map<string, string[]>();
+  for (const tr of topo.trusted) groups.set(tr.why, [...(groups.get(tr.why) ?? []), fill(tr.cidr, team)]);
+  return [...groups].map(([why, cidrs]) => ({ why, cidrs }));
 }
 
 export function buildRules(box: Box, topo: Topology, policy: Policy): RuleSet {
@@ -50,7 +57,7 @@ export function buildRules(box: Box, topo: Topology, policy: Policy): RuleSet {
   return {
     box: resolveBox(box, t),
     policy,
-    trusted: topo.trusted.map((tr) => ({ cidr: fill(tr.cidr, t), why: tr.why })),
+    trusted: groupTrusted(topo, t),
     allows,
   };
 }
