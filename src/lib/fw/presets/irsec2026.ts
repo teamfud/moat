@@ -2,7 +2,8 @@ import type { Box, Service, Topology } from "../model";
 import datadog from "./irsec2026-datadog.json";
 
 // The IRSeC 2026 boxes plus the traffic its rules say must never be blocked:
-// the management network and DataDog's ranges (npm run update-datadog).
+// the management network, DataDog's ranges (npm run update-datadog) and
+// barrier's syslog to timing. Out-of-scope ips may not be blocked at all.
 // Ports the packet doesn't spell out are guesses, flagged in the box notes.
 
 const tcp = (label: string, ports: string, from: Service["from"] = "any"): Service => ({ label, proto: "tcp", ports, from });
@@ -27,7 +28,10 @@ export const IRSEC_2026: Topology = {
     { cidr: "172.16.1.0/24", why: "management network" },
     ...datadog.ipv4.map((cidr) => ({ cidr, why: "datadog" })),
   ],
-  adminSources: ["10.{x}.1.0/24"],
+  // The cloud boxes have no console, only remote access from the lan, which
+  // probably reaches them nat'd to barrier's outside address.
+  adminSources: ["10.{x}.1.0/24", "172.20.1.{x}"],
+  blockOutOfScope: "never",
   boxes: [
     box({
       name: "barrier",
@@ -81,7 +85,7 @@ export const IRSEC_2026: Topology = {
       os: "ubuntu",
       scored: [tcp("ftp", "21"), tcp("ftp passive", "40000-50000")],
       extra: linuxAdmin,
-      notes: "check pasv_min_port / pasv_max_port in vsftpd.conf and fix the passive range",
+      notes: "guessed the passive range. read pasv_min_port / pasv_max_port in vsftpd.conf and match the firewall to it. don't change vsftpd, scored services stay as configured",
     }),
     box({
       name: "grandstand",
@@ -108,14 +112,14 @@ export const IRSEC_2026: Topology = {
       os: "ubuntu",
       scored: [],
       extra: [
-        tcp("syslog", "514", "scope"),
-        udp("syslog", "514", "scope"),
+        tcp("syslog", "514"),
+        udp("syslog", "514"),
         tcp("wazuh agents", "1514-1515", "scope"),
         tcp("wazuh dashboard", "443", "admin"),
         tcp("wazuh api", "55000", "admin"),
         ...linuxAdmin,
       ],
-      notes: "wazuh. syslog on 514 has to stay open for the other boxes",
+      notes: "wazuh. syslog on 514 is open to anyone: the rules say barrier → timing:514 must always get through, and barrier may send from its outside address",
     }),
   ],
 };

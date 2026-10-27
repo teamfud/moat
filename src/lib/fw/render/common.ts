@@ -1,5 +1,6 @@
 import { TARGETS, type Script, type Target } from "../model";
-import type { ResolvedBox, RuleSet } from "../plan";
+import { tcpPorts, type ResolvedBox, type RuleSet } from "../plan";
+import { formatRange } from "../ports";
 
 export type RulesOutput = {
   /** Backs up, applies, and starts the rollback timer. */
@@ -8,6 +9,8 @@ export type RulesOutput = {
   keep?: Script;
   /** Puts the firewall back to how it was before fud moat. IP blocks stay. */
   undo?: Script;
+  /** Shows what changed since apply, and the open sessions. Changes nothing. */
+  check?: Script;
   notes: string[];
 };
 
@@ -113,3 +116,72 @@ if command -v ss >/dev/null 2>&1; then
   for ip in ${ips.join(" ")}; do ss -K dst "$ip" >/dev/null 2>&1 || true; done
 fi
 `;
+
+/**
+ * Established tcp sessions keep working under new rules, so list them. A
+ * session on a listening port is inbound, ⚠ when the rules don't allow that
+ * port. Anything else is this box connecting out.
+ */
+export const openSessions = (rs: RuleSet) => `
+# sessions that were already open keep working (established traffic is let through), so look at each one
+if command -v ss >/dev/null 2>&1; then
+  echo "open tcp sessions. ⚠ in = someone came in on a port the rules don't allow. out = this box connected out, check where to"
+  L=$(ss -Htln 2>/dev/null | awk '{ p = $4; sub(/.*:/, "", p); print p }' | sort -u | tr '\\n' ' ')
+  ss -Htnp state established 2>/dev/null | awk -v ok="${tcpPorts(rs).map((r) => formatRange(r)).join(" ")}" -v listen="$L" '
+    BEGIN { n = split(listen, l, " "); for (i = 1; i <= n; i++) lis[l[i]] = 1; n = split(ok, a, " ") }
+    {
+      lp = $3; sub(/.*:/, "", lp); peer = $4; sub(/:[^:]*$/, "", peer)
+      if (peer ~ /^(127\\.|\\[::1\\]|\\[::ffff:127\\.)/) next
+      dir = "out"; flag = " "
+      if (lp in lis) {
+        dir = "in"; flag = "⚠"
+        for (i = 1; i <= n; i++) { split(a[i], r, "-"); if (r[2] == "") r[2] = r[1]; if (lp + 0 >= r[1] + 0 && lp + 0 <= r[2] + 0) flag = " " }
+      }
+      proc = $5; sub(/^users:\\(\\("/, "", proc); sub(/".*pid=/, " pid ", proc); sub(/,.*/, "", proc)
+      printf "  %s %-3s %-24s %-24s %s\\n", flag, dir, $4, $3, proc
+    }'
+fi
+`;
+
+/**
+ * Drift detection: apply saves `snap`'s output, check compares it to now.
+ * `snap` is a shell function body that prints the loaded rules.
+ */
+export const saveSnapshot = (snap: string) => `
+# remember what got loaded, for the check script
+snap() {
+${snap}
+}
+snap > "$B/expected.txt" 2>&1 || true
+`;
+
+export const checkScript = (rs: RuleSet, target: Target, snap: string, extra = "") =>
+  script(
+    rs.box,
+    target,
+    "check",
+    `#!/bin/sh
+${header(rs.box, target, "check")}# compares the live firewall to what apply loaded. run it whenever, it changes nothing.
+B=${DIR}
+snap() {
+${snap}
+}
+if [ ! -f "$B/expected.txt" ]; then
+  echo "✗ no fud moat snapshot on $(hostname): never applied, rolled back, undone, or someone deleted $B"
+else
+  if [ -f "$B/rollback.pid" ] && kill -0 "$(cat "$B/rollback.pid")" 2>/dev/null; then echo "⚠ rollback still pending. run keep it"; fi
+  snap > "$B/now.txt" 2>&1 || true
+  if cmp -s "$B/expected.txt" "$B/now.txt" 2>/dev/null || [ "$(cat "$B/expected.txt")" = "$(cat "$B/now.txt")" ]; then
+    echo "✓ fud moat rules on $(hostname) match what apply loaded"
+  else
+    echo "✗ rules changed since apply. - was loaded, + is live now:"
+    if command -v diff >/dev/null 2>&1; then diff "$B/expected.txt" "$B/now.txt" | grep '^[<>]' | sed 's/^</  -/; s/^>/  +/'; else echo "  (no diff here) now:"; cat "$B/now.txt"; fi
+  fi
+fi
+${extra}${openSessions(rs)}`,
+  );
+
+export const OUTBOUND_NOTES = [
+  "outbound only reaches ur own ranges, trusted ranges, dns and dhcp. apt / dnf / curl to the internet fail until u undo",
+  "connections that were already open keep working both ways, so kill shells listed under open sessions",
+];

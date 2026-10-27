@@ -18,7 +18,7 @@ export type State = {
 };
 
 const KEY = "fud-moat:v1";
-const EMPTY: Topology = { name: "untitled", team: 1, scope: [], trusted: [], adminSources: [], boxes: [] };
+const EMPTY: Topology = { name: "untitled", team: 1, scope: [], trusted: [], adminSources: [], blockOutOfScope: "ask", boxes: [] };
 const initial: State = { topo: EMPTY, policy: DEFAULT_POLICY, targets: {}, blockInput: "", whiteTeamOk: false };
 
 let state: State | null = null;

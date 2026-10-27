@@ -10,17 +10,17 @@ const RULES: { what: string; why: string; moat: string }[] = [
   {
     what: "trusted ranges",
     why: "management, scoring and monitoring networks have to keep working no matter what.",
-    moat: "trusted ranges are allowed in on every box, and quick block refuses to block them. add them on the boxes page.",
+    moat: "trusted ranges are allowed in (and out, when outbound is restricted) on every box, and quick block refuses to block them. add them on the boxes page.",
   },
   {
     what: "ur own boxes",
     why: "blocking a teammate box breaks everything that talks to it.",
-    moat: "quick block refuses any address in the topology.",
+    moat: "quick block refuses any address in the topology, and any single-ip admin source (a jump box, ur router's outside ip).",
   },
   {
     what: "out-of-scope ips",
     why: "lots of comps only let u act on ur own ranges.",
-    moat: "ips outside the scope ranges are held back until u tick that white team said ok.",
+    moat: "ips outside the scope ranges are held back until u tick that white team said ok. if ur comp bans it outright, tick that on the boxes page and quick block refuses them.",
   },
   {
     what: "scored services",
@@ -31,6 +31,11 @@ const RULES: { what: string; why: string; moat: string }[] = [
     what: "lockouts",
     why: "a bad rule over ssh or rdp can cut u off from the box.",
     moat: "every hardening script rolls itself back after a few minutes unless u paste keep it from a new session.",
+  },
+  {
+    what: "outbound",
+    why: "cutting outbound kills red team callbacks, but also apt, updates and anything that phones home.",
+    moat: "outbound stays open unless u turn on restrict outbound. then it still reaches ur ranges, the admin sources, trusted ranges, dns and dhcp.",
   },
 ];
 

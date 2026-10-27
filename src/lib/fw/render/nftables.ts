@@ -3,16 +3,20 @@ import type { Allow, ResolvedBox, RuleSet } from "../plan";
 import {
   blockPrelude,
   cancelTimer,
+  checkScript,
   DIR,
   editBlockList,
   installUnit,
   killSessions,
+  openSessions,
   READ_BLOCKED,
   safe,
+  saveSnapshot,
   script,
   shPrelude,
   startTimer,
   writeFile,
+  OUTBOUND_NOTES,
   type BlocksOutput,
   type RulesOutput,
 } from "./common";
@@ -30,36 +34,65 @@ export function nftAllow(a: Allow) {
   return `${src}${a.proto} dport ${set(a.ports.map((r) => formatRange(r)))} accept ${comment}`;
 }
 
-export function nftRuleset(rs: RuleSet) {
-  // Named sets with auto-merge: a pasted list can overlap, which an anonymous set rejects.
-  const sets = rs.trusted.map(
-    (t, i) => `  set trusted_${i} {
+/** Named sets with auto-merge: a pasted list can overlap, which an anonymous set rejects. */
+export const nftTrustedSets = (rs: RuleSet) =>
+  rs.trusted
+    .map(
+      (t, i) => `  set trusted_${i} {
     type ipv4_addr; flags interval; auto-merge
     elements = ${set(t.cidrs)}
   }
 `,
-  );
+    )
+    .join("");
+
+const ND = "icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept";
+
+/** Outbound only to our own ranges, trusted ranges, dns and dhcp. Needs nftTrustedSets in the same table. */
+export function nftOutChain(rs: RuleSet) {
+  const trusted = rs.trusted.map((t, i) => `ip daddr @trusted_${i} accept comment "trusted: ${safe(t.why)}"`);
+  return `  chain output {
+    type filter hook output priority -10; policy drop;
+    oif "lo" accept
+    ct state established,related accept
+    ${ND}
+    ${trusted.join("\n    ")}
+    ip daddr ${set(rs.own)} accept comment "own ranges"
+    meta l4proto { tcp, udp } th dport 53 accept comment "dns"
+    udp dport 67 accept comment "dhcp"
+    icmp type echo-request accept
+${rs.policy.logDrops ? `    limit rate 10/second log prefix "fud-moat drop out: "\n` : ""}  }
+`;
+}
+
+export function nftRuleset(rs: RuleSet) {
   const trusted = rs.trusted.map((t, i) => `ip saddr @trusted_${i} accept comment "trusted: ${safe(t.why)}"`);
   return `add table inet fud_moat
 delete table inet fud_moat
 table inet fud_moat {
-${sets.join("")}  chain input {
+${nftTrustedSets(rs)}  chain input {
     type filter hook input priority -10; policy drop;
     iif "lo" accept
     ct state established,related accept
     ct state invalid drop
-    icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept
+    ${ND}
     ${trusted.join("\n    ")}
     ${rs.allows.map(nftAllow).join("\n    ")}
 ${rs.policy.logDrops ? `    limit rate 10/second log prefix "fud-moat drop: "\n` : ""}  }
-}`;
+${rs.policy.restrictOutbound ? nftOutChain(rs) : ""}}`;
 }
+
+const SNAP = `  nft list table inet fud_moat`;
+const OTHER_TABLES = `
+echo "other nft tables (docker's and the distro's are normal, anything else is worth a look):"
+nft list tables 2>/dev/null | grep -v fud_moat | sed 's/^/  /'
+`;
 
 const ROLLBACK = `#!/bin/sh
 # fud moat rollback: drops the fud_moat table. ip blocks (fud_moat_block) stay.
 B=${DIR}
 nft delete table inet fud_moat 2>/dev/null || true
-rm -f "$B/rules.sh" "$B/rules.pending.sh" "$B/rollback.pid"
+rm -f "$B/rules.sh" "$B/rules.pending.sh" "$B/rollback.pid" "$B/expected.txt"
 echo "✓ rolled back fud moat rules on $(hostname)"`;
 
 export function nftRules(rs: RuleSet): RulesOutput {
@@ -74,7 +107,7 @@ if [ -f ${DIR}/blocks.sh ]; then sh ${DIR}/blocks.sh; fi
 FUDMOAT
 
 sh "$B/rules.pending.sh"
-${startTimer(rs.policy.rollbackMinutes)}`;
+${saveSnapshot(SNAP)}${startTimer(rs.policy.rollbackMinutes)}${openSessions(rs)}`;
 
   const keep = `#!/bin/sh
 # fud moat · ${rs.box.name} · keep it: cancel the rollback and re-apply at boot
@@ -92,10 +125,12 @@ ${cancelTimer}sh "$B/rollback.sh"
     "ipv6 is dropped except neighbor discovery",
   ];
   if (rs.box.docker) notes.push("container ports go through forward, not input, so they stay reachable. ip blocks cover forward too");
+  if (rs.policy.restrictOutbound) notes.push(...OUTBOUND_NOTES);
   return {
     apply: script(rs.box, "nftables", "rules", apply),
     keep: script(rs.box, "nftables", "keep", keep),
     undo: script(rs.box, "nftables", "undo", undo),
+    check: checkScript(rs, "nftables", SNAP, OTHER_TABLES),
     notes,
   };
 }

@@ -24,32 +24,43 @@ function Ranges({ topo }: { topo: Topology }) {
   const [admin, setAdmin] = useState(topo.adminSources.join("\n"));
   const [trusted, setTrusted] = useState(topo.trusted.map((t) => `${t.cidr} ${t.why}`).join("\n"));
   return (
-    <div className="grid gap-4 p-5 md:grid-cols-3">
-      <Label>
-        in-scope ranges (ur team&apos;s networks)
-        <Textarea value={scope} onChange={(e) => setScope(e.target.value)} onBlur={() => setTopo((t) => ({ ...t, scope: lines(scope) }))} className="font-mono" />
-      </Label>
-      <Label>
-        admin sources (rdp, ssh, … allowed from)
-        <Textarea value={admin} onChange={(e) => setAdmin(e.target.value)} onBlur={() => setTopo((t) => ({ ...t, adminSources: lines(admin) }))} className="font-mono" />
-      </Label>
-      <Label>
-        trusted: never blocked, always let in (mgmt, scoring, monitoring). &quot;cidr why&quot; per line, or paste a plain list
-        <Textarea
-          value={trusted}
-          onChange={(e) => setTrusted(e.target.value)}
-          onBlur={() =>
-            setTopo((t) => ({
-              ...t,
-              trusted: lines(trusted).map((l) => {
-                const [cidr, ...why] = l.split(/\s+/);
-                return { cidr, why: why.join(" ") || "trusted" };
-              }),
-            }))
-          }
-          className="font-mono"
+    <div className="flex flex-col gap-4 p-5">
+      <div className="grid gap-4 md:grid-cols-3">
+        <Label>
+          in-scope ranges (ur team&apos;s networks)
+          <Textarea value={scope} onChange={(e) => setScope(e.target.value)} onBlur={() => setTopo((t) => ({ ...t, scope: lines(scope) }))} className="font-mono" />
+        </Label>
+        <Label>
+          admin sources (rdp, ssh, … allowed from). add ur router&apos;s outside ip if ur traffic gets nat&apos;d
+          <Textarea value={admin} onChange={(e) => setAdmin(e.target.value)} onBlur={() => setTopo((t) => ({ ...t, adminSources: lines(admin) }))} className="font-mono" />
+        </Label>
+        <Label>
+          trusted: never blocked, always let in and out (mgmt, scoring, monitoring). &quot;cidr why&quot; per line, or paste a plain list
+          <Textarea
+            value={trusted}
+            onChange={(e) => setTrusted(e.target.value)}
+            onBlur={() =>
+              setTopo((t) => ({
+                ...t,
+                trusted: lines(trusted).map((l) => {
+                  const [cidr, ...why] = l.split(/\s+/);
+                  return { cidr, why: why.join(" ") || "trusted" };
+                }),
+              }))
+            }
+            className="font-mono"
+          />
+        </Label>
+      </div>
+      <label className="flex items-center gap-2 text-xs text-muted">
+        <input
+          type="checkbox"
+          checked={topo.blockOutOfScope === "never"}
+          onChange={(e) => setTopo((t) => ({ ...t, blockOutOfScope: e.target.checked ? "never" : "ask" }))}
+          className="accent-[var(--accent)]"
         />
-      </Label>
+        the rules ban blocking out-of-scope ips (quick block refuses them instead of asking)
+      </label>
     </div>
   );
 }

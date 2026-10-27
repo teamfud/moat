@@ -36,12 +36,21 @@ describe("checkBlock", () => {
     expect(checkBlock("224.0.0.1", topo).level).toBe("error");
   });
 
-  it("allows a rogue in-scope ip, warns on out of scope", () => {
+  it("allows a rogue in-scope ip", () => {
     expect(checkBlock("10.3.1.66", topo)).toMatchObject({ level: "ok", ip: "10.3.1.66" });
     expect(checkBlock("10.3.1.66/32", topo)).toMatchObject({ level: "ok", ip: "10.3.1.66" });
-    expect(checkBlock("6.6.6.6", topo)).toMatchObject({ level: "warn", ip: "6.6.6.6" });
+  });
+
+  it("refuses out of scope when the comp bans it, warns otherwise", () => {
+    expect(checkBlock("6.6.6.6", topo)).toMatchObject({ level: "error", msg: expect.stringContaining("bans") });
+    const ask: Topology = { ...topo, blockOutOfScope: "ask" };
+    expect(checkBlock("6.6.6.6", ask)).toMatchObject({ level: "warn", ip: "6.6.6.6" });
     // another team's lan is out of scope too
-    expect(checkBlock("10.4.1.5", topo).level).toBe("warn");
+    expect(checkBlock("10.4.1.5", ask).level).toBe("warn");
+  });
+
+  it("refuses single-ip admin sources, like barrier's outside address", () => {
+    expect(checkBlock("172.20.1.3", { ...topo, blockOutOfScope: "ask" })).toMatchObject({ level: "error", msg: expect.stringContaining("admin source") });
   });
 });
 
@@ -86,6 +95,12 @@ describe("checkBox", () => {
 
   it("warns on docker boxes", () => {
     expect(checkBox(box("grandstand"), topo, "ufw", DEFAULT_POLICY)).toContainEqual(expect.objectContaining({ level: "warn", msg: expect.stringContaining("docker") }));
+  });
+
+  it("warns that restricted outbound breaks active ftp", () => {
+    const p = { ...DEFAULT_POLICY, restrictOutbound: true };
+    expect(checkBox(box("garage"), topo, "ufw", p)).toContainEqual(expect.objectContaining({ level: "warn", msg: expect.stringContaining("active mode ftp") }));
+    expect(checkBox(box("pitlane"), topo, "nftables", p)).toEqual([]);
   });
 
   it("bounds the rollback timer", () => {

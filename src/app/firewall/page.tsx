@@ -61,6 +61,7 @@ function BoxRules({ box, topo, policy, target, blocked }: { box: Box; topo: Topo
             )}
             <ScriptView title={out.keep ? "1 · apply" : "checklist"} script={out.apply} />
             {out.keep && <ScriptView title="2 · keep it" script={out.keep} />}
+            {out.check && <ScriptView title="check" script={out.check} hint="run any time: shows what changed since apply (red team loves turning firewalls off) and every open session. changes nothing." />}
             {out.undo && <ScriptView title="undo" script={out.undo} hint="back to how it was before fud moat. ip blocks stay." />}
             {out.notes.length > 0 && (
               <ul className="flex flex-col gap-1 text-xs text-muted">
@@ -88,7 +89,7 @@ export default function FirewallPage() {
 
   return (
     <>
-      <PageHeader title="firewall rules" sub="allowlist per box: scored, extras and trusted ranges stay open, everything else inbound gets dropped" />
+      <PageHeader title="firewall rules" sub="allowlist per box: scored, extras and trusted ranges stay open, everything else inbound (and optionally outbound) gets dropped" />
       {!hydrated ? null : topo.boxes.length === 0 ? (
         <Card className="p-10 text-center text-muted">no boxes yet. add some on the boxes page</Card>
       ) : (
@@ -120,6 +121,10 @@ export default function FirewallPage() {
               <label className="flex h-9 items-center gap-2 text-xs text-muted">
                 <input type="checkbox" checked={policy.logDrops} onChange={(e) => setPolicy({ logDrops: e.target.checked })} className="accent-[var(--accent)]" />
                 log dropped packets (great evidence for the ir report)
+              </label>
+              <label className="flex h-9 items-center gap-2 text-xs text-muted">
+                <input type="checkbox" checked={policy.restrictOutbound} onChange={(e) => setPolicy({ restrictOutbound: e.target.checked })} className="accent-[var(--accent)]" />
+                restrict outbound too (only ur ranges, trusted, dns, dhcp. kills callbacks, breaks apt)
               </label>
             </div>
           </Card>

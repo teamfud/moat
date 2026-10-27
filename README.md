@@ -7,7 +7,7 @@ Write addresses as templates like `10.{x}.1.4` and set the team number in the he
 ## What it does
 
 - **Boxes**: the topology as an editable table: boxes, addresses, OS, scored services and extras (admin access, ping, …). Import/export as JSON to share with teammates.
-- **Firewall**: one allowlist script per box. Scored services are open to anyone, extras to the admin sources or the scope ranges, and trusted ranges always get in. Everything else inbound is dropped and outbound stays open. Targets:
+- **Firewall**: one allowlist script per box. Scored services are open to anyone, extras to the admin sources or the scope ranges, and trusted ranges always get in. Everything else inbound is dropped. Outbound stays open unless you tick **restrict outbound**, which only lets traffic out to your scope ranges, admin sources, trusted ranges, DNS and DHCP. That cuts off red team callbacks, but also breaks package installs. Admin sources count as in scope for "scope" services, so add your router's outside address if your own traffic gets NAT'd. Targets:
   | OS | Firewall |
   | --- | --- |
   | Windows | PowerShell (`New-NetFirewallRule`, group `fud-moat`) |
@@ -22,7 +22,7 @@ Write addresses as templates like `10.{x}.1.4` and set the team number in the he
 
 Presets live in `src/lib/fw/presets/`. Add one to `PRESETS` in `index.ts` and it shows up in the picker. Loading a preset replaces the whole topology except the team number.
 
-The IRSeC 2026 preset includes its management network and DataDog's ranges as trusted, since that comp requires both to stay reachable. Refresh the DataDog list before the comp, then commit:
+The IRSeC 2026 preset includes its management network and DataDog's ranges as trusted, since that comp requires both to stay reachable. It also opens syslog on timing to anyone, adds barrier's outside address as an admin source (the cloud boxes are only reachable from the LAN, probably NAT'd), and refuses out-of-scope blocks, as the comp's rules require. Refresh the DataDog list before the comp, then commit:
 
 ```bash
 npm run update-datadog
@@ -32,12 +32,15 @@ npm run update-datadog
 
 Every hardening script backs up first, applies, and then **rolls itself back after N minutes** (5 by default). To stop it, open a new session, check that you still get in, then paste **keep it**. Keep it also makes the rules survive a reboot: through a `fud-moat.service` systemd unit for nftables and iptables, natively for the rest. **Undo** puts the firewall back to how it was before fud moat touched it. IP blocks stay.
 
+Apply saves a snapshot of what it loaded. **Check** compares the live firewall against it, so you see when someone turned the firewall off, flushed the rules or added their own. Run it as often as you like, since it changes nothing. Apply and check both list open TCP sessions, because established connections survive new rules: ⚠ marks inbound sessions on a port the rules don't allow, and outbound ones are marked so you can see where the box connects to.
+
 ## Guardrails
 
 - **Single IPs only**: quick block refuses subnets.
 - **Trusted ranges** (management, scoring, monitoring networks, …) are allowed in on every box and can never be blocked. They start empty, so add your comp's on the boxes page. You can paste a plain list.
 - **Your own boxes** can't be blocked.
-- **Out-of-scope IPs** are held back until you tick that white team said ok.
+- **Single-IP admin sources** (a jump box, your router's outside address) can't be blocked.
+- **Out-of-scope IPs** are held back until you tick that white team said ok. If your comp bans blocking them outright, tick that on the boxes page and quick block refuses them.
 - **Scored ports** are open to anyone. Routers get a checklist, so NAT and port forwards are never scripted.
 
 > ⚠️ **Read your comp's rules before running the hardening scripts.** Some comps treat default-deny inbound as blocking subnets, or require specific traffic (logging, monitoring agents) to stay open. If default-deny isn't allowed, use quick block only.

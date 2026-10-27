@@ -3,11 +3,15 @@ import type { Allow, ResolvedBox, RuleSet } from "../plan";
 import {
   blockPrelude,
   cancelTimer,
+  checkScript,
   DIR,
   editBlockList,
   installUnit,
   killSessions,
+  openSessions,
+  OUTBOUND_NOTES,
   safe,
+  saveSnapshot,
   script,
   shPrelude,
   startTimer,
@@ -31,6 +35,21 @@ export function ufwAllow(a: Allow): string[] {
   return out;
 }
 
+/** One ufw rule per range, as a loop when it's long. `rule` gets "$n". */
+const ufwEach = (cidrs: string[], why: string, rule: (n: string) => string) =>
+  cidrs.length === 1
+    ? `${rule(cidrs[0])} >/dev/null`
+    : `echo "adding ${cidrs.length} ${safe(why)} ranges, takes a sec…"\nfor n in ${cidrs.join(" ")}; do\n  ${rule('"$n"')} >/dev/null\ndone`;
+
+/** Outbound only to our own ranges, trusted ranges, dns and dhcp. */
+const ufwOut = (rs: RuleSet) => `ufw default deny outgoing >/dev/null
+${rs.trusted.map((t) => ufwEach(t.cidrs, t.why, (n) => `ufw allow out to ${n} comment 'trusted out: ${safe(t.why)}'`)).join("\n")}
+${ufwEach(rs.own, "own", (n) => `ufw allow out to ${n} comment 'own ranges'`)}
+ufw allow out 53 comment 'dns' >/dev/null
+ufw allow out 67/udp comment 'dhcp' >/dev/null`;
+
+const SNAP = `  ufw status verbose`;
+
 const ROLLBACK = `#!/bin/sh
 # fud moat rollback: puts ufw back how it was before fud moat, then re-adds ip blocks
 B=${DIR}
@@ -42,7 +61,7 @@ if [ -d "$P" ]; then
   if [ "$(cat "$P/state")" = active ]; then ufw --force enable >/dev/null; fi
   rm -rf "$P"
 fi
-rm -f "$B/rollback.pid"
+rm -f "$B/rollback.pid" "$B/expected.txt"
 if [ -f "$B/blocks.sh" ]; then sh "$B/blocks.sh"; fi
 echo "✓ rolled back ufw on $(hostname)"`;
 
@@ -59,19 +78,13 @@ ${writeFile("$B/rollback.sh", ROLLBACK)}
 # start clean: this also throws out red team edits to before.rules
 ufw --force reset >/dev/null
 ufw default deny incoming >/dev/null
-ufw default allow outgoing >/dev/null
-${rs.trusted
-  .map((t) =>
-    t.cidrs.length === 1
-      ? `ufw allow from ${t.cidrs[0]} comment 'trusted: ${safe(t.why)}' >/dev/null`
-      : `echo "adding ${t.cidrs.length} ${safe(t.why)} ranges, takes a sec…"\nfor n in ${t.cidrs.join(" ")}; do\n  ufw allow from "$n" comment 'trusted: ${safe(t.why)}' >/dev/null\ndone`,
-  )
-  .join("\n")}
+${rs.policy.restrictOutbound ? ufwOut(rs) : "ufw default allow outgoing >/dev/null"}
+${rs.trusted.map((t) => ufwEach(t.cidrs, t.why, (n) => `ufw allow from ${n} comment 'trusted: ${safe(t.why)}'`)).join("\n")}
 ${rs.allows.flatMap(ufwAllow).join("\n")}
 ufw logging ${rs.policy.logDrops ? "low" : "off"} >/dev/null
 ufw --force enable >/dev/null
 if [ -f "$B/blocks.sh" ]; then sh "$B/blocks.sh"; fi
-${startTimer(rs.policy.rollbackMinutes)}`;
+${saveSnapshot(SNAP)}${startTimer(rs.policy.rollbackMinutes)}${openSessions(rs)}`;
 
   const keep = `#!/bin/sh
 # fud moat · ${rs.box.name} · keep it: cancel the rollback (ufw keeps its rules across reboots)
@@ -88,10 +101,12 @@ ${cancelTimer}sh "$B/rollback.sh"
     "ping stays allowed (ufw's before.rules)",
   ];
   if (rs.box.docker) notes.push("container ports skip ufw entirely (docker writes its own iptables rules). ip blocks also go in DOCKER-USER");
+  if (rs.policy.restrictOutbound) notes.push(...OUTBOUND_NOTES, "ufw has no outbound ping rule, so pinging out fails too");
   return {
     apply: script(rs.box, "ufw", "rules", apply),
     keep: script(rs.box, "ufw", "keep", keep),
     undo: script(rs.box, "ufw", "undo", undo),
+    check: checkScript(rs, "ufw", SNAP),
     notes,
   };
 }

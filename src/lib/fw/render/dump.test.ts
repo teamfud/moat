@@ -18,6 +18,10 @@ it.skipIf(!process.env.MOAT_DUMP)("dumps every script", () => {
       save(`${b.name}.${t}.apply`, r.apply);
       if (r.keep) save(`${b.name}.${t}.keep`, r.keep);
       if (r.undo) save(`${b.name}.${t}.undo`, r.undo);
+      if (r.check) save(`${b.name}.${t}.check`, r.check);
+      const out = renderRules(b, topo, { ...DEFAULT_POLICY, rollbackMinutes: 1, restrictOutbound: true }, t);
+      save(`${b.name}.${t}.out.apply`, out.apply);
+      if (out.check) save(`${b.name}.${t}.out.check`, out.check);
       const bl = renderBlocks(b, topo, t, ["10.3.1.66", "6.6.6.6"]);
       save(`${b.name}.${t}.block`, bl.block);
       save(`${b.name}.${t}.unblock`, bl.unblock);

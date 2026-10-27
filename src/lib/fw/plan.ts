@@ -19,6 +19,8 @@ export type RuleSet = {
   policy: Policy;
   /** Trusted ranges grouped by reason, so a long list is one rule, not hundreds. */
   trusted: { why: string; cidrs: string[] }[];
+  /** Scope ranges plus admin sources: where outbound may go when it's restricted. */
+  own: string[];
   allows: Allow[];
 };
 
@@ -38,11 +40,10 @@ function groupTrusted(topo: Topology, team: number) {
 
 export function buildRules(box: Box, topo: Topology, policy: Policy): RuleSet {
   const t = topo.team;
-  const sources = {
-    any: null,
-    admin: topo.adminSources.map((s) => fill(s, t)),
-    scope: topo.scope.map((s) => fill(s, t)),
-  };
+  const admin = topo.adminSources.map((s) => fill(s, t));
+  // Admin sources count as in scope: behind nat, ur lan shows up as the router's outside ip.
+  const own = [...new Set([...topo.scope.map((s) => fill(s, t)), ...admin])];
+  const sources = { any: null, admin, scope: own };
 
   const allows: Allow[] = [];
   const add = (svc: Box["scored"][number], scored: boolean) => {
@@ -58,6 +59,10 @@ export function buildRules(box: Box, topo: Topology, policy: Policy): RuleSet {
     box: resolveBox(box, t),
     policy,
     trusted: groupTrusted(topo, t),
+    own,
     allows,
   };
 }
+
+/** Every tcp port the box lets in, for spotting sessions on anything else. */
+export const tcpPorts = (rs: RuleSet) => rs.allows.filter((a) => a.proto === "tcp").flatMap((a) => a.ports);

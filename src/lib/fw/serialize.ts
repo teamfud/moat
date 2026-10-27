@@ -47,6 +47,7 @@ export function parseTopology(v: unknown): Topology {
     scope: strs(t.scope ?? [], "scope"),
     trusted,
     adminSources: strs(t.adminSources ?? [], "admin sources"),
+    blockOutOfScope: t.blockOutOfScope === "never" ? "never" : "ask",
     boxes: t.boxes.map(box),
   };
 }

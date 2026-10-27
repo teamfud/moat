@@ -3,7 +3,8 @@ export type Proto = "tcp" | "udp" | "icmp";
 
 /**
  * Who may reach a service: anyone (scored checks come from the scoring
- * engine, whose IPs we don't know), the admin sources, or anything in scope.
+ * engine, whose IPs we don't know), the admin sources, or anything in scope
+ * (admin sources count as in scope here, so nat'd traffic from ur lan works).
  */
 export type From = "any" | "admin" | "scope";
 
@@ -40,6 +41,8 @@ export type Topology = {
   trusted: Trusted[];
   /** Where admin access ("admin" services) is allowed from. */
   adminSources: string[];
+  /** "never" when the comp bans blocking out-of-scope ips outright, "ask" to allow it once white team says ok. */
+  blockOutOfScope: "ask" | "never";
   boxes: Box[];
 };
 
@@ -47,6 +50,8 @@ export type Policy = {
   logDrops: boolean;
   /** Auto-restore the old rules after this many minutes unless "keep it" runs. */
   rollbackMinutes: number;
+  /** Drop outbound too, except to ur own ranges, trusted ranges, dns and dhcp. */
+  restrictOutbound: boolean;
 };
 
 export type Target = "powershell" | "nftables" | "ufw" | "firewalld" | "iptables" | "pfsense";
@@ -77,6 +82,6 @@ export const OS_LABELS: Record<Os, string> = {
   pfsense: "pfsense",
 };
 
-export const DEFAULT_POLICY: Policy = { logDrops: true, rollbackMinutes: 5 };
+export const DEFAULT_POLICY: Policy = { logDrops: true, rollbackMinutes: 5, restrictOutbound: false };
 
 export type Script = { filename: string; lang: "sh" | "powershell" | "text"; body: string };

@@ -1,5 +1,5 @@
 import { contains, fill, formatIp, parseCidr, type Cidr } from "./ip";
-import { OS_TARGETS, type Box, type Policy, type Target, type Topology } from "./model";
+import { OS_TARGETS, type Box, type Policy, type Service, type Target, type Topology } from "./model";
 import { parsePorts } from "./ports";
 
 export type Finding = { level: "error" | "warn"; msg: string };
@@ -66,6 +66,15 @@ export function checkBox(box: Box, topo: Topology, target: Target, policy: Polic
   if (topo.adminSources.length === 0 && box.extra.some((s) => s.from === "admin")) {
     out.push(warn("no admin sources set, so admin services (rdp, ssh, …) end up unreachable"));
   }
+  if (policy.restrictOutbound) {
+    const servesFtp = (s: Service) => {
+      const p = s.proto === "tcp" ? parsePorts(s.ports) : [];
+      return typeof p !== "string" && p.some(([lo, hi]) => lo <= 21 && 21 <= hi);
+    };
+    if (box.scored.some(servesFtp)) {
+      out.push(warn("outbound is restricted and this box serves ftp: active mode ftp connects out to the client and breaks. passive mode is fine"));
+    }
+  }
   if (box.docker) {
     out.push(
       warn(
@@ -99,8 +108,11 @@ export function checkBlock(input: string, topo: Topology): BlockVerdict {
 
   const own = topo.boxes.find((b) => fill(b.addr, topo.team) === ip);
   if (own) return v("error", `that's ${own.name}, ur own box`);
+  // a single-ip admin source is someone's way in (a jump box, the router's outside ip)
+  if (cidrs(topo.adminSources, topo.team).some((s) => s.prefix === 32 && s.base === c.base)) return v("error", `${ip} is an admin source, blocking it locks u out`);
 
   if (!cidrs(topo.scope, topo.team).some((s) => contains(s, c))) {
+    if (topo.blockOutOfScope === "never") return v("error", "outside ur scope ranges, and this comp bans blocking out-of-scope ips");
     return v("warn", "outside ur scope ranges. lots of comps ban blocking out of scope ips, so check the rules or ask white team first", ip);
   }
   return v("ok", "single in-scope ip, good to block", ip);

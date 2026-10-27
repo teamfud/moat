@@ -3,12 +3,16 @@ import type { Allow, ResolvedBox, RuleSet } from "../plan";
 import {
   blockPrelude,
   cancelTimer,
+  checkScript,
   DIR,
   editBlockList,
   installUnit,
   killSessions,
+  openSessions,
+  OUTBOUND_NOTES,
   READ_BLOCKED,
   safe,
+  saveSnapshot,
   script,
   shPrelude,
   startTimer,
@@ -38,6 +42,29 @@ export function iptAllow(a: Allow): string[] {
   return out;
 }
 
+/** "-s"/"-d" accepts for each trusted group, as a loop when it's long. */
+const iptTrusted = (rs: RuleSet, chain: string, flag: "-s" | "-d") =>
+  rs.trusted
+    .map((t) =>
+      t.cidrs.length === 1
+        ? `ipt -A ${chain} ${flag} ${t.cidrs[0]} -j ACCEPT ${comment(`trusted: ${t.why}`)}`
+        : `for n in ${t.cidrs.join(" ")}; do\n  ipt -A ${chain} ${flag} "$n" -j ACCEPT ${comment(`trusted: ${t.why}`)}\ndone`,
+    )
+    .join("\n");
+
+/** Outbound only to our own ranges, trusted ranges, dns and dhcp. */
+const iptOut = (rs: RuleSet) => `ipt -N FUD_OUT
+ipt -A FUD_OUT -o lo -j ACCEPT
+ipt -A FUD_OUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+${iptTrusted(rs, "FUD_OUT", "-d")}
+for n in ${rs.own.join(" ")}; do ipt -A FUD_OUT -d "$n" -j ACCEPT ${comment("own ranges")}; done
+ipt -A FUD_OUT -p udp -m multiport --dports 53,67 -j ACCEPT ${comment("dns, dhcp")}
+ipt -A FUD_OUT -p tcp --dport 53 -j ACCEPT ${comment("dns")}
+ipt -A FUD_OUT -p icmp --icmp-type echo-request -j ACCEPT
+${rs.policy.logDrops ? `ipt -A FUD_OUT -m limit --limit 10/s -j LOG --log-prefix "fud-moat drop out: "\n` : ""}ipt -A FUD_OUT -j DROP
+ipt -I OUTPUT 1 -j FUD_OUT
+`;
+
 export function iptRulesSh(rs: RuleSet) {
   return `#!/bin/sh
 # fud moat rules for ${rs.box.name}: chain FUD_IN, jumped to first from INPUT
@@ -48,18 +75,15 @@ ipt -F FUD_IN
 ipt -A FUD_IN -i lo -j ACCEPT
 ipt -A FUD_IN -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ipt -A FUD_IN -m conntrack --ctstate INVALID -j DROP
-${rs.trusted
-  .map((t) =>
-    t.cidrs.length === 1
-      ? `ipt -A FUD_IN -s ${t.cidrs[0]} -j ACCEPT ${comment(`trusted: ${t.why}`)}`
-      : `for n in ${t.cidrs.join(" ")}; do\n  ipt -A FUD_IN -s "$n" -j ACCEPT ${comment(`trusted: ${t.why}`)}\ndone`,
-  )
-  .join("\n")}
+${iptTrusted(rs, "FUD_IN", "-s")}
 ${rs.allows.flatMap(iptAllow).join("\n")}
 ${rs.policy.logDrops ? `ipt -A FUD_IN -m limit --limit 10/s -j LOG --log-prefix "fud-moat drop: "\n` : ""}ipt -A FUD_IN -j DROP
 while ipt -D INPUT -j FUD_IN 2>/dev/null; do :; done
 ipt -I INPUT 1 -j FUD_IN
-# blocks go back on top of FUD_IN
+while ipt -D OUTPUT -j FUD_OUT 2>/dev/null; do :; done
+ipt -F FUD_OUT 2>/dev/null || true
+ipt -X FUD_OUT 2>/dev/null || true
+${rs.policy.restrictOutbound ? iptOut(rs) : ""}# blocks go back on top of FUD_IN
 if [ -f ${DIR}/blocks.sh ]; then sh ${DIR}/blocks.sh; fi`;
 }
 
@@ -69,15 +93,28 @@ B=${DIR}
 while iptables -w -D INPUT -j FUD_IN 2>/dev/null; do :; done
 iptables -w -F FUD_IN 2>/dev/null || true
 iptables -w -X FUD_IN 2>/dev/null || true
-rm -f "$B/rules.sh" "$B/rules.pending.sh" "$B/rollback.pid"
+while iptables -w -D OUTPUT -j FUD_OUT 2>/dev/null; do :; done
+iptables -w -F FUD_OUT 2>/dev/null || true
+iptables -w -X FUD_OUT 2>/dev/null || true
+rm -f "$B/rules.sh" "$B/rules.pending.sh" "$B/rollback.pid" "$B/expected.txt"
 echo "✓ rolled back fud moat rules on $(hostname)"`;
+
+/** Our chains, plus the policy and first rule of INPUT (and OUTPUT): anything slipped in above FUD_IN shows up. */
+const iptSnap = (rs: RuleSet) => `  iptables -w -S FUD_IN
+  iptables -w -S INPUT | grep -v FUD_BLOCK | head -2${
+    rs.policy.restrictOutbound
+      ? `
+  iptables -w -S FUD_OUT
+  iptables -w -S OUTPUT | grep -v FUD_BLOCK | head -2`
+      : ""
+  }`;
 
 export function iptRules(rs: RuleSet): RulesOutput {
   const apply = `${shPrelude(rs, "iptables", `command -v iptables >/dev/null 2>&1 || { echo "✗ iptables not found"; exit 1; }`)}
 ${writeFile("$B/rollback.sh", ROLLBACK)}
 ${writeFile("$B/rules.pending.sh", iptRulesSh(rs))}
 sh "$B/rules.pending.sh"
-${startTimer(rs.policy.rollbackMinutes)}`;
+${saveSnapshot(iptSnap(rs))}${startTimer(rs.policy.rollbackMinutes)}${openSessions(rs)}`;
 
   const keep = `#!/bin/sh
 # fud moat · ${rs.box.name} · keep it: cancel the rollback and re-apply at boot
@@ -95,10 +132,12 @@ ${cancelTimer}sh "$B/rollback.sh"
     "FUD_IN is jumped to first, so anything red team left lower in INPUT never sees traffic. check `iptables -S` for other tables (nat, mangle) though",
   ];
   if (rs.box.docker) notes.push("container ports go through FORWARD / DOCKER-USER, not INPUT, so they stay reachable. ip blocks cover DOCKER-USER too");
+  if (rs.policy.restrictOutbound) notes.push(...OUTBOUND_NOTES);
   return {
     apply: script(rs.box, "iptables", "rules", apply),
     keep: script(rs.box, "iptables", "keep", keep),
     undo: script(rs.box, "iptables", "undo", undo),
+    check: checkScript(rs, "iptables", iptSnap(rs)),
     notes,
   };
 }

@@ -32,17 +32,19 @@ describe("renderRules", () => {
     },
   );
 
-  it("opens syslog on timing to the scope ranges", () => {
-    for (const t of OS_TARGETS.ubuntu) {
-      const body = renderRules(box("timing"), topo, DEFAULT_POLICY, t).apply.body;
-      expect(body).toContain("192.168.3.0/24");
-      expect(body).toMatch(/514/);
-    }
+  it("opens syslog on timing to anyone, so barrier always gets through", () => {
+    expect(renderRules(box("timing"), topo, DEFAULT_POLICY, "nftables").apply.body).toMatch(/^\s+tcp dport \{ 514 \} accept/m);
+    expect(renderRules(box("timing"), topo, DEFAULT_POLICY, "ufw").apply.body).toContain("ufw allow proto udp from any to any port 514");
+  });
+
+  it("lets admin sources reach scope services too", () => {
+    const body = renderRules(box("timing"), topo, DEFAULT_POLICY, "nftables").apply.body;
+    expect(body).toContain("ip saddr { 10.3.1.0/24, 192.168.3.0/24, 172.20.1.3 } tcp dport { 1514-1515 } accept");
   });
 
   it("restricts admin services to the admin sources", () => {
     const body = renderRules(box("scrutineering"), topo, DEFAULT_POLICY, "nftables").apply.body;
-    expect(body).toContain('ip saddr { 10.3.1.0/24 } tcp dport { 22 } accept');
+    expect(body).toContain('ip saddr { 10.3.1.0/24, 172.20.1.3 } tcp dport { 22 } accept');
     expect(body).toContain('tcp dport { 3306 } accept comment "mariadb (scored)"');
   });
 
@@ -63,6 +65,44 @@ describe("renderRules", () => {
     expect(out.apply.lang).toBe("text");
     expect(out.keep).toBeUndefined();
     expect(out.apply.body).toContain("172.16.1.0/24");
+  });
+});
+
+describe("outbound", () => {
+  const out = { ...DEFAULT_POLICY, restrictOutbound: true };
+  const scripted = combos.filter(([b]) => b.os !== "pfsense");
+
+  it.each(scripted.map(([b, t]) => [b.name, t, b] as const))("%s × %s leaves outbound open by default", (_n, t, b) => {
+    const body = renderRules(b, topo, DEFAULT_POLICY, t).apply.body;
+    expect(body).not.toMatch(/fud_moat_out \{|chain output|FUD_OUT$|deny outgoing|DefaultOutboundAction Block/m);
+  });
+
+  it.each(scripted.map(([b, t]) => [b.name, t, b] as const))("%s × %s lets trusted, own ranges and dns out when restricted", (_n, t, b) => {
+    const body = renderRules(b, topo, out, t).apply.body;
+    expect(body).toMatch(/fud_moat_out \{|chain output|ipt -I OUTPUT 1 -j FUD_OUT|deny outgoing|DefaultOutboundAction Block/);
+    for (const c of ["172.16.1.0/24", "10.3.1.0/24", "192.168.3.0/24", "172.20.1.3"]) expect(body).toContain(c);
+    expect(body).toMatch(/53/);
+  });
+
+  it("puts firewalld's outbound in its own nft table, and keep it re-applies it at boot", () => {
+    const r = renderRules(box("scrutineering"), topo, out, "firewalld");
+    expect(r.apply.body).toContain("table inet fud_moat_out {");
+    expect(r.keep!.body).toContain("fud-moat.service");
+  });
+});
+
+describe("check", () => {
+  it.each(combos.filter(([b]) => b.os !== "pfsense").map(([b, t]) => [b.name, t, b] as const))("%s × %s snapshots on apply and compares on check", (_n, t, b) => {
+    const r = renderRules(b, topo, DEFAULT_POLICY, t);
+    expect(r.apply.body).toContain("expected.txt");
+    expect(r.check!.body).toContain("expected.txt");
+    expect(r.check!.body).toMatch(/open tcp sessions/);
+    expect(r.apply.body).toMatch(/open tcp sessions/);
+  });
+
+  it("flags inbound sessions on ports the rules don't allow", () => {
+    expect(renderRules(box("garage"), topo, DEFAULT_POLICY, "nftables").apply.body).toContain('awk -v ok="21 40000-50000 22"');
+    expect(renderRules(box("pitwall"), topo, DEFAULT_POLICY, "powershell").apply.body).toContain("'49152-65535'");
   });
 });
 

@@ -36,6 +36,7 @@ run $O/$BOX.$T.apply.sh
 run $O/$BOX.$T.keep.sh
 echo "  … waiting 70s, rollback should NOT fire"; sleep 70
 expect $PORT open "kept"; expect 9999 closed "kept"
+docker exec -i $N sh < $O/$BOX.$T.check.sh 2>&1 | grep -q "match what apply loaded" && ok "check: no drift" || bad "check: reported drift right after keep it"
 sed "s/6\.6\.6\.6/$CIP/g" $O/$BOX.$T.block.sh > $TMP/moat-$T-block.sh
 sed "s/6\.6\.6\.6/$CIP/g" $O/$BOX.$T.unblock.sh > $TMP/moat-$T-unblock.sh
 run $TMP/moat-$T-block.sh
@@ -48,5 +49,12 @@ run $O/$BOX.$T.undo.sh
 expect 9999 closed "undo keeps the block"
 run $TMP/moat-$T-unblock.sh
 expect 9999 open "after undo + unblock"
+docker exec -i $N sh < $O/$BOX.$T.check.sh 2>&1 | grep -q "no fud moat snapshot" && ok "check: knows it was undone" || bad "check: missed the undo"
+# restricted outbound: callbacks to the internet die, inbound still works, undo opens it back up
+run $O/$BOX.$T.out.apply.sh
+expect $PORT open "outbound restricted"
+docker exec $N curl -fsS -m 8 -o /dev/null "${VAULT_URL:-https://vault.fud.team/api/health}" >/dev/null 2>&1 && bad "outbound restricted: https still got out" || ok "outbound restricted: https blocked"
+run $O/$BOX.$T.undo.sh
+vault "outbound undone"
 echo "== $T: $pass passed, $fail failed"
 docker rm -f $N moat-cli-$T >/dev/null 2>&1
