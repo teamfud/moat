@@ -82,6 +82,6 @@ export const OS_LABELS: Record<Os, string> = {
   pfsense: "pfsense",
 };
 
-export const DEFAULT_POLICY: Policy = { logDrops: true, rollbackMinutes: 5, restrictOutbound: false };
+export const DEFAULT_POLICY: Policy = { logDrops: true, rollbackMinutes: 1, restrictOutbound: false };
 
 export type Script = { filename: string; lang: "sh" | "powershell" | "text"; body: string };
