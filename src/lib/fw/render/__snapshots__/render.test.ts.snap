@@ -132,7 +132,7 @@ FUDMOAT
 
 # the rules, as a script so "keep it" can re-run it at boot
 cat > "$B/rules.pending.sh" <<'FUDMOAT'
-nft -f - <<'NFT'
+nft -f - <<'NFT' || { echo "✗ nft rejected the rules (errors above), nothing changed"; exit 1; }
 add table inet fud_moat
 delete table inet fud_moat
 table inet fud_moat {
@@ -425,7 +425,7 @@ FUDMOAT
 
 # the rules, as a script so "keep it" can re-run it at boot
 cat > "$B/rules.pending.sh" <<'FUDMOAT'
-nft -f - <<'NFT'
+nft -f - <<'NFT' || { echo "✗ nft rejected the rules (errors above), nothing changed"; exit 1; }
 add table inet fud_moat
 delete table inet fud_moat
 table inet fud_moat {
@@ -714,7 +714,7 @@ FUDMOAT
 
 # the rules, as a script so "keep it" can re-run it at boot
 cat > "$B/rules.pending.sh" <<'FUDMOAT'
-nft -f - <<'NFT'
+nft -f - <<'NFT' || { echo "✗ nft rejected the rules (errors above), nothing changed"; exit 1; }
 add table inet fud_moat
 delete table inet fud_moat
 table inet fud_moat {
@@ -1237,7 +1237,7 @@ FUDMOAT
 
 # the rules, as a script so "keep it" can re-run it at boot
 cat > "$B/rules.pending.sh" <<'FUDMOAT'
-nft -f - <<'NFT'
+nft -f - <<'NFT' || { echo "✗ nft rejected the rules (errors above), nothing changed"; exit 1; }
 add table inet fud_moat
 delete table inet fud_moat
 table inet fud_moat {
@@ -1638,7 +1638,7 @@ FUDMOAT
 
 # the rules, as a script so "keep it" can re-run it at boot
 cat > "$B/rules.pending.sh" <<'FUDMOAT'
-nft -f - <<'NFT'
+nft -f - <<'NFT' || { echo "✗ nft rejected the rules (errors above), nothing changed"; exit 1; }
 add table inet fud_moat
 delete table inet fud_moat
 table inet fud_moat {
