@@ -13,14 +13,14 @@ exports[`renderRules > barrier × pfsense matches the snapshot 1`] = `
 [ ] system > user manager: unknown users or keys? check them (leave any white team / scoring accounts alone).
 [ ] diagnostics > command prompt / ssh: \`pfctl -sr | head -50\` to see what's actually loaded.
 [ ] status > system logs > settings: if remote logging is set up, leave it on.
-[ ] these must never be blocked: management network (172.16.1.0/24), datadog (127 ranges).
+[ ] these must never be blocked: management network (172.16.1.0/24), netbird egress (10.3.1.99/32), datadog (127 ranges).
 "
 `;
 
 exports[`renderRules > garage × iptables matches the snapshot 1`] = `
 "#!/bin/sh
 # fud moat · garage (10.3.1.5) · iptables · allowlist
-# paste into a root shell. rolls back in 5 min unless u run "keep it".
+# paste into a root shell. rolls back in 1 min unless u run "keep it".
 set -eu
 B=/etc/fud-moat
 command -v iptables >/dev/null 2>&1 || { echo "✗ iptables not found"; exit 1; }
@@ -54,6 +54,7 @@ ipt -A FUD_IN -i lo -j ACCEPT
 ipt -A FUD_IN -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ipt -A FUD_IN -m conntrack --ctstate INVALID -j DROP
 ipt -A FUD_IN -s 172.16.1.0/24 -j ACCEPT -m comment --comment "trusted management network"
+ipt -A FUD_IN -s 10.3.1.99/32 -j ACCEPT -m comment --comment "trusted netbird egress"
 for n in 107.21.25.247/32 108.137.133.223/32 108.137.188.57/32 13.114.211.96/32 13.115.46.213/32 13.126.169.175/32 13.208.126.217/32 13.208.133.55/32 13.208.142.17/32 13.208.255.200/32 13.209.118.42/32 13.209.230.111/32 13.234.54.8/32 13.236.246.161/32 13.238.14.57/32 13.244.188.203/32 13.244.85.86/32 13.245.194.43/32 13.245.200.254/32 13.246.172.210/32 13.247.164.9/32 13.48.150.244/32 13.48.239.118/32 13.48.254.37/32 13.54.169.48/32 15.152.238.192/32 15.161.86.71/32 15.165.240.116/32 15.168.188.85/32 15.188.202.64/32 15.188.240.172/32 15.188.243.248/32 16.162.136.62/32 16.163.153.45/32 18.102.80.189/32 18.130.113.168/32 18.139.52.173/32 18.163.21.55/32 18.163.59.106/32 18.166.19.255/32 18.195.155.52/32 18.200.120.237/32 18.229.28.50/32 18.229.36.120/32 18.96.130.96/29 18.96.16.112/29 18.96.227.72/29 18.97.147.8/29 18.98.131.24/29 18.98.196.216/29 18.98.67.176/29 18.98.96.240/29 18.99.147.8/29 18.99.209.96/29 18.99.224.56/29 18.99.34.208/29 18.99.4.112/29 18.99.99.232/29 20.62.248.141/32 20.83.144.189/32 209.162.159.0/26 3.1.219.207/32 3.1.36.99/32 3.120.223.25/32 3.121.24.234/32 3.18.172.189/32 3.18.188.104/32 3.18.197.0/32 3.35.66.96/32 3.36.177.119/32 3.40.134.72/29 3.40.2.64/29 3.41.0.88/29 3.41.176.48/29 3.42.136.80/29 3.44.192.120/29 3.45.0.40/29 3.92.150.182/32 3.96.7.126/32 34.0.225.0/24 34.110.187.75/32 34.117.129.254/32 34.121.119.136/32 34.145.82.128/29 34.146.154.144/29 34.149.119.85/32 34.149.203.90/32 34.149.54.227/32 34.149.66.128/26 34.159.50.128/29 34.160.125.158/32 34.160.150.109/32 34.160.40.115/32 34.160.41.148/32 34.160.7.29/32 34.174.98.16/29 34.208.32.189/32 34.48.76.208/29 34.69.237.0/24 34.94.234.88/29 35.152.76.8/32 35.154.93.182/32 35.176.195.46/32 35.177.43.250/32 35.184.241.87/32 35.190.51.116/32 35.223.11.90/32 35.244.255.175/32 40.76.107.170/32 43.198.123.228/32 43.203.72.233/32 43.218.5.202/32 5.60.130.112/29 52.186.167.216/29 52.192.175.207/32 52.35.61.232/32 52.55.56.26/32 52.60.189.53/32 52.67.95.251/32 52.89.221.151/32 52.9.13.199/32 52.9.139.134/32 54.177.155.33/32 63.34.100.178/32 63.35.33.198/32 8.234.4.128/25 99.79.87.237/32; do
   ipt -A FUD_IN -s "$n" -j ACCEPT -m comment --comment "trusted datadog"
 done
@@ -83,9 +84,9 @@ snap() {
 snap > "$B/expected.txt" 2>&1 || true
 
 # lockout insurance: roll back unless "keep it" runs first
-nohup sh -c "sleep 300; sh $B/rollback.sh" >/dev/null 2>&1 &
+nohup sh -c "sleep 60; sh $B/rollback.sh" >/dev/null 2>&1 &
 echo $! > "$B/rollback.pid"
-echo "✓ rules up. rolling back in 5 min unless u run keep it from a NEW session"
+echo "✓ rules up. rolling back in 1 min unless u run keep it from a NEW session"
 
 # sessions that were already open keep working (established traffic is let through), so look at each one
 if command -v ss >/dev/null 2>&1; then
@@ -111,7 +112,7 @@ fi
 exports[`renderRules > garage × nftables matches the snapshot 1`] = `
 "#!/bin/sh
 # fud moat · garage (10.3.1.5) · nftables · allowlist
-# paste into a root shell. rolls back in 5 min unless u run "keep it".
+# paste into a root shell. rolls back in 1 min unless u run "keep it".
 set -eu
 B=/etc/fud-moat
 command -v nft >/dev/null 2>&1 || { echo "✗ nft not found. apt install nftables (or dnf install nftables)"; exit 1; }
@@ -140,6 +141,10 @@ table inet fud_moat {
     elements = { 172.16.1.0/24 }
   }
   set trusted_1 {
+    type ipv4_addr; flags interval; auto-merge
+    elements = { 10.3.1.99/32 }
+  }
+  set trusted_2 {
     type ipv4_addr; flags interval; auto-merge
     elements = {
       107.21.25.247/32, 108.137.133.223/32, 108.137.188.57/32, 13.114.211.96/32, 13.115.46.213/32, 13.126.169.175/32,
@@ -173,7 +178,8 @@ table inet fud_moat {
     ct state invalid drop
     icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept
     ip saddr @trusted_0 accept comment "trusted: management network"
-    ip saddr @trusted_1 accept comment "trusted: datadog"
+    ip saddr @trusted_1 accept comment "trusted: netbird egress"
+    ip saddr @trusted_2 accept comment "trusted: datadog"
     tcp dport { 21 } accept comment "ftp (scored)"
     tcp dport { 40000-50000 } accept comment "ftp passive (scored)"
     ip saddr { 10.3.1.0/24, 172.20.1.3 } tcp dport { 22 } accept comment "ssh"
@@ -194,9 +200,9 @@ snap() {
 snap > "$B/expected.txt" 2>&1 || true
 
 # lockout insurance: roll back unless "keep it" runs first
-nohup sh -c "sleep 300; sh $B/rollback.sh" >/dev/null 2>&1 &
+nohup sh -c "sleep 60; sh $B/rollback.sh" >/dev/null 2>&1 &
 echo $! > "$B/rollback.pid"
-echo "✓ rules up. rolling back in 5 min unless u run keep it from a NEW session"
+echo "✓ rules up. rolling back in 1 min unless u run keep it from a NEW session"
 
 # sessions that were already open keep working (established traffic is let through), so look at each one
 if command -v ss >/dev/null 2>&1; then
@@ -222,7 +228,7 @@ fi
 exports[`renderRules > garage × ufw matches the snapshot 1`] = `
 "#!/bin/sh
 # fud moat · garage (10.3.1.5) · ufw · allowlist
-# paste into a root shell. rolls back in 5 min unless u run "keep it".
+# paste into a root shell. rolls back in 1 min unless u run "keep it".
 set -eu
 B=/etc/fud-moat
 command -v ufw >/dev/null 2>&1 || { echo "✗ ufw not found. apt install ufw"; exit 1; }
@@ -260,6 +266,7 @@ ufw --force reset >/dev/null
 ufw default deny incoming >/dev/null
 ufw default allow outgoing >/dev/null
 ufw allow from 172.16.1.0/24 comment 'trusted: management network' >/dev/null
+ufw allow from 10.3.1.99/32 comment 'trusted: netbird egress' >/dev/null
 echo "adding 127 datadog ranges, takes a sec…"
 for n in 107.21.25.247/32 108.137.133.223/32 108.137.188.57/32 13.114.211.96/32 13.115.46.213/32 13.126.169.175/32 13.208.126.217/32 13.208.133.55/32 13.208.142.17/32 13.208.255.200/32 13.209.118.42/32 13.209.230.111/32 13.234.54.8/32 13.236.246.161/32 13.238.14.57/32 13.244.188.203/32 13.244.85.86/32 13.245.194.43/32 13.245.200.254/32 13.246.172.210/32 13.247.164.9/32 13.48.150.244/32 13.48.239.118/32 13.48.254.37/32 13.54.169.48/32 15.152.238.192/32 15.161.86.71/32 15.165.240.116/32 15.168.188.85/32 15.188.202.64/32 15.188.240.172/32 15.188.243.248/32 16.162.136.62/32 16.163.153.45/32 18.102.80.189/32 18.130.113.168/32 18.139.52.173/32 18.163.21.55/32 18.163.59.106/32 18.166.19.255/32 18.195.155.52/32 18.200.120.237/32 18.229.28.50/32 18.229.36.120/32 18.96.130.96/29 18.96.16.112/29 18.96.227.72/29 18.97.147.8/29 18.98.131.24/29 18.98.196.216/29 18.98.67.176/29 18.98.96.240/29 18.99.147.8/29 18.99.209.96/29 18.99.224.56/29 18.99.34.208/29 18.99.4.112/29 18.99.99.232/29 20.62.248.141/32 20.83.144.189/32 209.162.159.0/26 3.1.219.207/32 3.1.36.99/32 3.120.223.25/32 3.121.24.234/32 3.18.172.189/32 3.18.188.104/32 3.18.197.0/32 3.35.66.96/32 3.36.177.119/32 3.40.134.72/29 3.40.2.64/29 3.41.0.88/29 3.41.176.48/29 3.42.136.80/29 3.44.192.120/29 3.45.0.40/29 3.92.150.182/32 3.96.7.126/32 34.0.225.0/24 34.110.187.75/32 34.117.129.254/32 34.121.119.136/32 34.145.82.128/29 34.146.154.144/29 34.149.119.85/32 34.149.203.90/32 34.149.54.227/32 34.149.66.128/26 34.159.50.128/29 34.160.125.158/32 34.160.150.109/32 34.160.40.115/32 34.160.41.148/32 34.160.7.29/32 34.174.98.16/29 34.208.32.189/32 34.48.76.208/29 34.69.237.0/24 34.94.234.88/29 35.152.76.8/32 35.154.93.182/32 35.176.195.46/32 35.177.43.250/32 35.184.241.87/32 35.190.51.116/32 35.223.11.90/32 35.244.255.175/32 40.76.107.170/32 43.198.123.228/32 43.203.72.233/32 43.218.5.202/32 5.60.130.112/29 52.186.167.216/29 52.192.175.207/32 52.35.61.232/32 52.55.56.26/32 52.60.189.53/32 52.67.95.251/32 52.89.221.151/32 52.9.13.199/32 52.9.139.134/32 54.177.155.33/32 63.34.100.178/32 63.35.33.198/32 8.234.4.128/25 99.79.87.237/32; do
   ufw allow from "$n" comment 'trusted: datadog' >/dev/null
@@ -279,9 +286,9 @@ snap() {
 snap > "$B/expected.txt" 2>&1 || true
 
 # lockout insurance: roll back unless "keep it" runs first
-nohup sh -c "sleep 300; sh $B/rollback.sh" >/dev/null 2>&1 &
+nohup sh -c "sleep 60; sh $B/rollback.sh" >/dev/null 2>&1 &
 echo $! > "$B/rollback.pid"
-echo "✓ rules up. rolling back in 5 min unless u run keep it from a NEW session"
+echo "✓ rules up. rolling back in 1 min unless u run keep it from a NEW session"
 
 # sessions that were already open keep working (established traffic is let through), so look at each one
 if command -v ss >/dev/null 2>&1; then
@@ -307,7 +314,7 @@ fi
 exports[`renderRules > grandstand × iptables matches the snapshot 1`] = `
 "#!/bin/sh
 # fud moat · grandstand (10.3.1.6) · iptables · allowlist
-# paste into a root shell. rolls back in 5 min unless u run "keep it".
+# paste into a root shell. rolls back in 1 min unless u run "keep it".
 set -eu
 B=/etc/fud-moat
 command -v iptables >/dev/null 2>&1 || { echo "✗ iptables not found"; exit 1; }
@@ -341,6 +348,7 @@ ipt -A FUD_IN -i lo -j ACCEPT
 ipt -A FUD_IN -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ipt -A FUD_IN -m conntrack --ctstate INVALID -j DROP
 ipt -A FUD_IN -s 172.16.1.0/24 -j ACCEPT -m comment --comment "trusted management network"
+ipt -A FUD_IN -s 10.3.1.99/32 -j ACCEPT -m comment --comment "trusted netbird egress"
 for n in 107.21.25.247/32 108.137.133.223/32 108.137.188.57/32 13.114.211.96/32 13.115.46.213/32 13.126.169.175/32 13.208.126.217/32 13.208.133.55/32 13.208.142.17/32 13.208.255.200/32 13.209.118.42/32 13.209.230.111/32 13.234.54.8/32 13.236.246.161/32 13.238.14.57/32 13.244.188.203/32 13.244.85.86/32 13.245.194.43/32 13.245.200.254/32 13.246.172.210/32 13.247.164.9/32 13.48.150.244/32 13.48.239.118/32 13.48.254.37/32 13.54.169.48/32 15.152.238.192/32 15.161.86.71/32 15.165.240.116/32 15.168.188.85/32 15.188.202.64/32 15.188.240.172/32 15.188.243.248/32 16.162.136.62/32 16.163.153.45/32 18.102.80.189/32 18.130.113.168/32 18.139.52.173/32 18.163.21.55/32 18.163.59.106/32 18.166.19.255/32 18.195.155.52/32 18.200.120.237/32 18.229.28.50/32 18.229.36.120/32 18.96.130.96/29 18.96.16.112/29 18.96.227.72/29 18.97.147.8/29 18.98.131.24/29 18.98.196.216/29 18.98.67.176/29 18.98.96.240/29 18.99.147.8/29 18.99.209.96/29 18.99.224.56/29 18.99.34.208/29 18.99.4.112/29 18.99.99.232/29 20.62.248.141/32 20.83.144.189/32 209.162.159.0/26 3.1.219.207/32 3.1.36.99/32 3.120.223.25/32 3.121.24.234/32 3.18.172.189/32 3.18.188.104/32 3.18.197.0/32 3.35.66.96/32 3.36.177.119/32 3.40.134.72/29 3.40.2.64/29 3.41.0.88/29 3.41.176.48/29 3.42.136.80/29 3.44.192.120/29 3.45.0.40/29 3.92.150.182/32 3.96.7.126/32 34.0.225.0/24 34.110.187.75/32 34.117.129.254/32 34.121.119.136/32 34.145.82.128/29 34.146.154.144/29 34.149.119.85/32 34.149.203.90/32 34.149.54.227/32 34.149.66.128/26 34.159.50.128/29 34.160.125.158/32 34.160.150.109/32 34.160.40.115/32 34.160.41.148/32 34.160.7.29/32 34.174.98.16/29 34.208.32.189/32 34.48.76.208/29 34.69.237.0/24 34.94.234.88/29 35.152.76.8/32 35.154.93.182/32 35.176.195.46/32 35.177.43.250/32 35.184.241.87/32 35.190.51.116/32 35.223.11.90/32 35.244.255.175/32 40.76.107.170/32 43.198.123.228/32 43.203.72.233/32 43.218.5.202/32 5.60.130.112/29 52.186.167.216/29 52.192.175.207/32 52.35.61.232/32 52.55.56.26/32 52.60.189.53/32 52.67.95.251/32 52.89.221.151/32 52.9.13.199/32 52.9.139.134/32 54.177.155.33/32 63.34.100.178/32 63.35.33.198/32 8.234.4.128/25 99.79.87.237/32; do
   ipt -A FUD_IN -s "$n" -j ACCEPT -m comment --comment "trusted datadog"
 done
@@ -369,9 +377,9 @@ snap() {
 snap > "$B/expected.txt" 2>&1 || true
 
 # lockout insurance: roll back unless "keep it" runs first
-nohup sh -c "sleep 300; sh $B/rollback.sh" >/dev/null 2>&1 &
+nohup sh -c "sleep 60; sh $B/rollback.sh" >/dev/null 2>&1 &
 echo $! > "$B/rollback.pid"
-echo "✓ rules up. rolling back in 5 min unless u run keep it from a NEW session"
+echo "✓ rules up. rolling back in 1 min unless u run keep it from a NEW session"
 
 # sessions that were already open keep working (established traffic is let through), so look at each one
 if command -v ss >/dev/null 2>&1; then
@@ -397,7 +405,7 @@ fi
 exports[`renderRules > grandstand × nftables matches the snapshot 1`] = `
 "#!/bin/sh
 # fud moat · grandstand (10.3.1.6) · nftables · allowlist
-# paste into a root shell. rolls back in 5 min unless u run "keep it".
+# paste into a root shell. rolls back in 1 min unless u run "keep it".
 set -eu
 B=/etc/fud-moat
 command -v nft >/dev/null 2>&1 || { echo "✗ nft not found. apt install nftables (or dnf install nftables)"; exit 1; }
@@ -426,6 +434,10 @@ table inet fud_moat {
     elements = { 172.16.1.0/24 }
   }
   set trusted_1 {
+    type ipv4_addr; flags interval; auto-merge
+    elements = { 10.3.1.99/32 }
+  }
+  set trusted_2 {
     type ipv4_addr; flags interval; auto-merge
     elements = {
       107.21.25.247/32, 108.137.133.223/32, 108.137.188.57/32, 13.114.211.96/32, 13.115.46.213/32, 13.126.169.175/32,
@@ -459,7 +471,8 @@ table inet fud_moat {
     ct state invalid drop
     icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept
     ip saddr @trusted_0 accept comment "trusted: management network"
-    ip saddr @trusted_1 accept comment "trusted: datadog"
+    ip saddr @trusted_1 accept comment "trusted: netbird egress"
+    ip saddr @trusted_2 accept comment "trusted: datadog"
     tcp dport { 6667, 6697 } accept comment "irc (scored)"
     ip saddr { 10.3.1.0/24, 172.20.1.3 } tcp dport { 22 } accept comment "ssh"
     icmp type echo-request accept comment "ping"
@@ -479,9 +492,9 @@ snap() {
 snap > "$B/expected.txt" 2>&1 || true
 
 # lockout insurance: roll back unless "keep it" runs first
-nohup sh -c "sleep 300; sh $B/rollback.sh" >/dev/null 2>&1 &
+nohup sh -c "sleep 60; sh $B/rollback.sh" >/dev/null 2>&1 &
 echo $! > "$B/rollback.pid"
-echo "✓ rules up. rolling back in 5 min unless u run keep it from a NEW session"
+echo "✓ rules up. rolling back in 1 min unless u run keep it from a NEW session"
 
 # sessions that were already open keep working (established traffic is let through), so look at each one
 if command -v ss >/dev/null 2>&1; then
@@ -507,7 +520,7 @@ fi
 exports[`renderRules > grandstand × ufw matches the snapshot 1`] = `
 "#!/bin/sh
 # fud moat · grandstand (10.3.1.6) · ufw · allowlist
-# paste into a root shell. rolls back in 5 min unless u run "keep it".
+# paste into a root shell. rolls back in 1 min unless u run "keep it".
 set -eu
 B=/etc/fud-moat
 command -v ufw >/dev/null 2>&1 || { echo "✗ ufw not found. apt install ufw"; exit 1; }
@@ -545,6 +558,7 @@ ufw --force reset >/dev/null
 ufw default deny incoming >/dev/null
 ufw default allow outgoing >/dev/null
 ufw allow from 172.16.1.0/24 comment 'trusted: management network' >/dev/null
+ufw allow from 10.3.1.99/32 comment 'trusted: netbird egress' >/dev/null
 echo "adding 127 datadog ranges, takes a sec…"
 for n in 107.21.25.247/32 108.137.133.223/32 108.137.188.57/32 13.114.211.96/32 13.115.46.213/32 13.126.169.175/32 13.208.126.217/32 13.208.133.55/32 13.208.142.17/32 13.208.255.200/32 13.209.118.42/32 13.209.230.111/32 13.234.54.8/32 13.236.246.161/32 13.238.14.57/32 13.244.188.203/32 13.244.85.86/32 13.245.194.43/32 13.245.200.254/32 13.246.172.210/32 13.247.164.9/32 13.48.150.244/32 13.48.239.118/32 13.48.254.37/32 13.54.169.48/32 15.152.238.192/32 15.161.86.71/32 15.165.240.116/32 15.168.188.85/32 15.188.202.64/32 15.188.240.172/32 15.188.243.248/32 16.162.136.62/32 16.163.153.45/32 18.102.80.189/32 18.130.113.168/32 18.139.52.173/32 18.163.21.55/32 18.163.59.106/32 18.166.19.255/32 18.195.155.52/32 18.200.120.237/32 18.229.28.50/32 18.229.36.120/32 18.96.130.96/29 18.96.16.112/29 18.96.227.72/29 18.97.147.8/29 18.98.131.24/29 18.98.196.216/29 18.98.67.176/29 18.98.96.240/29 18.99.147.8/29 18.99.209.96/29 18.99.224.56/29 18.99.34.208/29 18.99.4.112/29 18.99.99.232/29 20.62.248.141/32 20.83.144.189/32 209.162.159.0/26 3.1.219.207/32 3.1.36.99/32 3.120.223.25/32 3.121.24.234/32 3.18.172.189/32 3.18.188.104/32 3.18.197.0/32 3.35.66.96/32 3.36.177.119/32 3.40.134.72/29 3.40.2.64/29 3.41.0.88/29 3.41.176.48/29 3.42.136.80/29 3.44.192.120/29 3.45.0.40/29 3.92.150.182/32 3.96.7.126/32 34.0.225.0/24 34.110.187.75/32 34.117.129.254/32 34.121.119.136/32 34.145.82.128/29 34.146.154.144/29 34.149.119.85/32 34.149.203.90/32 34.149.54.227/32 34.149.66.128/26 34.159.50.128/29 34.160.125.158/32 34.160.150.109/32 34.160.40.115/32 34.160.41.148/32 34.160.7.29/32 34.174.98.16/29 34.208.32.189/32 34.48.76.208/29 34.69.237.0/24 34.94.234.88/29 35.152.76.8/32 35.154.93.182/32 35.176.195.46/32 35.177.43.250/32 35.184.241.87/32 35.190.51.116/32 35.223.11.90/32 35.244.255.175/32 40.76.107.170/32 43.198.123.228/32 43.203.72.233/32 43.218.5.202/32 5.60.130.112/29 52.186.167.216/29 52.192.175.207/32 52.35.61.232/32 52.55.56.26/32 52.60.189.53/32 52.67.95.251/32 52.89.221.151/32 52.9.13.199/32 52.9.139.134/32 54.177.155.33/32 63.34.100.178/32 63.35.33.198/32 8.234.4.128/25 99.79.87.237/32; do
   ufw allow from "$n" comment 'trusted: datadog' >/dev/null
@@ -563,9 +577,9 @@ snap() {
 snap > "$B/expected.txt" 2>&1 || true
 
 # lockout insurance: roll back unless "keep it" runs first
-nohup sh -c "sleep 300; sh $B/rollback.sh" >/dev/null 2>&1 &
+nohup sh -c "sleep 60; sh $B/rollback.sh" >/dev/null 2>&1 &
 echo $! > "$B/rollback.pid"
-echo "✓ rules up. rolling back in 5 min unless u run keep it from a NEW session"
+echo "✓ rules up. rolling back in 1 min unless u run keep it from a NEW session"
 
 # sessions that were already open keep working (established traffic is let through), so look at each one
 if command -v ss >/dev/null 2>&1; then
@@ -591,7 +605,7 @@ fi
 exports[`renderRules > pitlane × iptables matches the snapshot 1`] = `
 "#!/bin/sh
 # fud moat · pitlane (10.3.1.4) · iptables · allowlist
-# paste into a root shell. rolls back in 5 min unless u run "keep it".
+# paste into a root shell. rolls back in 1 min unless u run "keep it".
 set -eu
 B=/etc/fud-moat
 command -v iptables >/dev/null 2>&1 || { echo "✗ iptables not found"; exit 1; }
@@ -625,6 +639,7 @@ ipt -A FUD_IN -i lo -j ACCEPT
 ipt -A FUD_IN -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ipt -A FUD_IN -m conntrack --ctstate INVALID -j DROP
 ipt -A FUD_IN -s 172.16.1.0/24 -j ACCEPT -m comment --comment "trusted management network"
+ipt -A FUD_IN -s 10.3.1.99/32 -j ACCEPT -m comment --comment "trusted netbird egress"
 for n in 107.21.25.247/32 108.137.133.223/32 108.137.188.57/32 13.114.211.96/32 13.115.46.213/32 13.126.169.175/32 13.208.126.217/32 13.208.133.55/32 13.208.142.17/32 13.208.255.200/32 13.209.118.42/32 13.209.230.111/32 13.234.54.8/32 13.236.246.161/32 13.238.14.57/32 13.244.188.203/32 13.244.85.86/32 13.245.194.43/32 13.245.200.254/32 13.246.172.210/32 13.247.164.9/32 13.48.150.244/32 13.48.239.118/32 13.48.254.37/32 13.54.169.48/32 15.152.238.192/32 15.161.86.71/32 15.165.240.116/32 15.168.188.85/32 15.188.202.64/32 15.188.240.172/32 15.188.243.248/32 16.162.136.62/32 16.163.153.45/32 18.102.80.189/32 18.130.113.168/32 18.139.52.173/32 18.163.21.55/32 18.163.59.106/32 18.166.19.255/32 18.195.155.52/32 18.200.120.237/32 18.229.28.50/32 18.229.36.120/32 18.96.130.96/29 18.96.16.112/29 18.96.227.72/29 18.97.147.8/29 18.98.131.24/29 18.98.196.216/29 18.98.67.176/29 18.98.96.240/29 18.99.147.8/29 18.99.209.96/29 18.99.224.56/29 18.99.34.208/29 18.99.4.112/29 18.99.99.232/29 20.62.248.141/32 20.83.144.189/32 209.162.159.0/26 3.1.219.207/32 3.1.36.99/32 3.120.223.25/32 3.121.24.234/32 3.18.172.189/32 3.18.188.104/32 3.18.197.0/32 3.35.66.96/32 3.36.177.119/32 3.40.134.72/29 3.40.2.64/29 3.41.0.88/29 3.41.176.48/29 3.42.136.80/29 3.44.192.120/29 3.45.0.40/29 3.92.150.182/32 3.96.7.126/32 34.0.225.0/24 34.110.187.75/32 34.117.129.254/32 34.121.119.136/32 34.145.82.128/29 34.146.154.144/29 34.149.119.85/32 34.149.203.90/32 34.149.54.227/32 34.149.66.128/26 34.159.50.128/29 34.160.125.158/32 34.160.150.109/32 34.160.40.115/32 34.160.41.148/32 34.160.7.29/32 34.174.98.16/29 34.208.32.189/32 34.48.76.208/29 34.69.237.0/24 34.94.234.88/29 35.152.76.8/32 35.154.93.182/32 35.176.195.46/32 35.177.43.250/32 35.184.241.87/32 35.190.51.116/32 35.223.11.90/32 35.244.255.175/32 40.76.107.170/32 43.198.123.228/32 43.203.72.233/32 43.218.5.202/32 5.60.130.112/29 52.186.167.216/29 52.192.175.207/32 52.35.61.232/32 52.55.56.26/32 52.60.189.53/32 52.67.95.251/32 52.89.221.151/32 52.9.13.199/32 52.9.139.134/32 54.177.155.33/32 63.34.100.178/32 63.35.33.198/32 8.234.4.128/25 99.79.87.237/32; do
   ipt -A FUD_IN -s "$n" -j ACCEPT -m comment --comment "trusted datadog"
 done
@@ -651,9 +666,9 @@ snap() {
 snap > "$B/expected.txt" 2>&1 || true
 
 # lockout insurance: roll back unless "keep it" runs first
-nohup sh -c "sleep 300; sh $B/rollback.sh" >/dev/null 2>&1 &
+nohup sh -c "sleep 60; sh $B/rollback.sh" >/dev/null 2>&1 &
 echo $! > "$B/rollback.pid"
-echo "✓ rules up. rolling back in 5 min unless u run keep it from a NEW session"
+echo "✓ rules up. rolling back in 1 min unless u run keep it from a NEW session"
 
 # sessions that were already open keep working (established traffic is let through), so look at each one
 if command -v ss >/dev/null 2>&1; then
@@ -679,7 +694,7 @@ fi
 exports[`renderRules > pitlane × nftables matches the snapshot 1`] = `
 "#!/bin/sh
 # fud moat · pitlane (10.3.1.4) · nftables · allowlist
-# paste into a root shell. rolls back in 5 min unless u run "keep it".
+# paste into a root shell. rolls back in 1 min unless u run "keep it".
 set -eu
 B=/etc/fud-moat
 command -v nft >/dev/null 2>&1 || { echo "✗ nft not found. apt install nftables (or dnf install nftables)"; exit 1; }
@@ -708,6 +723,10 @@ table inet fud_moat {
     elements = { 172.16.1.0/24 }
   }
   set trusted_1 {
+    type ipv4_addr; flags interval; auto-merge
+    elements = { 10.3.1.99/32 }
+  }
+  set trusted_2 {
     type ipv4_addr; flags interval; auto-merge
     elements = {
       107.21.25.247/32, 108.137.133.223/32, 108.137.188.57/32, 13.114.211.96/32, 13.115.46.213/32, 13.126.169.175/32,
@@ -741,7 +760,8 @@ table inet fud_moat {
     ct state invalid drop
     icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept
     ip saddr @trusted_0 accept comment "trusted: management network"
-    ip saddr @trusted_1 accept comment "trusted: datadog"
+    ip saddr @trusted_1 accept comment "trusted: netbird egress"
+    ip saddr @trusted_2 accept comment "trusted: datadog"
     tcp dport { 22 } accept comment "ssh (scored)"
     icmp type echo-request accept comment "ping"
     limit rate 10/second log prefix "fud-moat drop: "
@@ -760,9 +780,9 @@ snap() {
 snap > "$B/expected.txt" 2>&1 || true
 
 # lockout insurance: roll back unless "keep it" runs first
-nohup sh -c "sleep 300; sh $B/rollback.sh" >/dev/null 2>&1 &
+nohup sh -c "sleep 60; sh $B/rollback.sh" >/dev/null 2>&1 &
 echo $! > "$B/rollback.pid"
-echo "✓ rules up. rolling back in 5 min unless u run keep it from a NEW session"
+echo "✓ rules up. rolling back in 1 min unless u run keep it from a NEW session"
 
 # sessions that were already open keep working (established traffic is let through), so look at each one
 if command -v ss >/dev/null 2>&1; then
@@ -787,7 +807,7 @@ fi
 
 exports[`renderRules > pitwall × powershell matches the snapshot 1`] = `
 "# fud moat · pitwall (10.3.1.1) · powershell · allowlist
-# paste into an elevated powershell. rolls back in 5 min unless u run "keep it".
+# paste into an elevated powershell. rolls back in 1 min unless u run "keep it".
 $ErrorActionPreference = 'Stop'
 $B = 'C:\\fud-moat'
 $G = 'fud-moat'
@@ -827,6 +847,7 @@ function Allow([string]$Name, [hashtable]$P) {
   New-NetFirewallRule -Group $G -DisplayName $Name -Direction Inbound -Action Allow -Profile Any @P | Out-Null
 }
 Allow 'fud-moat trusted: management network' @{ RemoteAddress = @('172.16.1.0/24') }
+Allow 'fud-moat trusted: netbird egress' @{ RemoteAddress = @('10.3.1.99/32') }
 Allow 'fud-moat trusted: datadog' @{ RemoteAddress = @('107.21.25.247/32', '108.137.133.223/32', '108.137.188.57/32', '13.114.211.96/32', '13.115.46.213/32', '13.126.169.175/32', '13.208.126.217/32', '13.208.133.55/32', '13.208.142.17/32', '13.208.255.200/32', '13.209.118.42/32', '13.209.230.111/32', '13.234.54.8/32', '13.236.246.161/32', '13.238.14.57/32', '13.244.188.203/32', '13.244.85.86/32', '13.245.194.43/32', '13.245.200.254/32', '13.246.172.210/32', '13.247.164.9/32', '13.48.150.244/32', '13.48.239.118/32', '13.48.254.37/32', '13.54.169.48/32', '15.152.238.192/32', '15.161.86.71/32', '15.165.240.116/32', '15.168.188.85/32', '15.188.202.64/32', '15.188.240.172/32', '15.188.243.248/32', '16.162.136.62/32', '16.163.153.45/32', '18.102.80.189/32', '18.130.113.168/32', '18.139.52.173/32', '18.163.21.55/32', '18.163.59.106/32', '18.166.19.255/32', '18.195.155.52/32', '18.200.120.237/32', '18.229.28.50/32', '18.229.36.120/32', '18.96.130.96/29', '18.96.16.112/29', '18.96.227.72/29', '18.97.147.8/29', '18.98.131.24/29', '18.98.196.216/29', '18.98.67.176/29', '18.98.96.240/29', '18.99.147.8/29', '18.99.209.96/29', '18.99.224.56/29', '18.99.34.208/29', '18.99.4.112/29', '18.99.99.232/29', '20.62.248.141/32', '20.83.144.189/32', '209.162.159.0/26', '3.1.219.207/32', '3.1.36.99/32', '3.120.223.25/32', '3.121.24.234/32', '3.18.172.189/32', '3.18.188.104/32', '3.18.197.0/32', '3.35.66.96/32', '3.36.177.119/32', '3.40.134.72/29', '3.40.2.64/29', '3.41.0.88/29', '3.41.176.48/29', '3.42.136.80/29', '3.44.192.120/29', '3.45.0.40/29', '3.92.150.182/32', '3.96.7.126/32', '34.0.225.0/24', '34.110.187.75/32', '34.117.129.254/32', '34.121.119.136/32', '34.145.82.128/29', '34.146.154.144/29', '34.149.119.85/32', '34.149.203.90/32', '34.149.54.227/32', '34.149.66.128/26', '34.159.50.128/29', '34.160.125.158/32', '34.160.150.109/32', '34.160.40.115/32', '34.160.41.148/32', '34.160.7.29/32', '34.174.98.16/29', '34.208.32.189/32', '34.48.76.208/29', '34.69.237.0/24', '34.94.234.88/29', '35.152.76.8/32', '35.154.93.182/32', '35.176.195.46/32', '35.177.43.250/32', '35.184.241.87/32', '35.190.51.116/32', '35.223.11.90/32', '35.244.255.175/32', '40.76.107.170/32', '43.198.123.228/32', '43.203.72.233/32', '43.218.5.202/32', '5.60.130.112/29', '52.186.167.216/29', '52.192.175.207/32', '52.35.61.232/32', '52.55.56.26/32', '52.60.189.53/32', '52.67.95.251/32', '52.89.221.151/32', '52.9.13.199/32', '52.9.139.134/32', '54.177.155.33/32', '63.34.100.178/32', '63.35.33.198/32', '8.234.4.128/25', '99.79.87.237/32') }
 Allow 'fud-moat dns tcp (scored)' @{ Protocol = 'TCP'; LocalPort = @('53') }
 Allow 'fud-moat dns udp (scored)' @{ Protocol = 'UDP'; LocalPort = @('53') }
@@ -866,9 +887,9 @@ Snap | Set-Content "$B\\expected.txt"
 
 # lockout insurance: roll back unless "keep it" runs first
 $a = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -File \`"$B\\rollback.ps1\`""
-$t = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5)
+$t = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1)
 Register-ScheduledTask -TaskName 'fud-moat-rollback' -Action $a -Trigger $t -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
-Write-Host "rules up. rolling back in 5 min unless u run keep it from a NEW session"
+Write-Host "rules up. rolling back in 1 min unless u run keep it from a NEW session"
 $other = Get-NetFirewallRule -Direction Inbound -Action Block -Enabled True | Where-Object { $_.Group -notlike 'fud-moat*' }
 if ($other) { Write-Warning "other inbound block rules exist, they beat allow rules. check them:"; $other | Format-Table DisplayName, Group }
 
@@ -891,7 +912,7 @@ Get-NetTCPConnection -State Established -ErrorAction SilentlyContinue | Where-Ob
 
 exports[`renderRules > safetycar × powershell matches the snapshot 1`] = `
 "# fud moat · safetycar (10.3.1.3) · powershell · allowlist
-# paste into an elevated powershell. rolls back in 5 min unless u run "keep it".
+# paste into an elevated powershell. rolls back in 1 min unless u run "keep it".
 $ErrorActionPreference = 'Stop'
 $B = 'C:\\fud-moat'
 $G = 'fud-moat'
@@ -931,6 +952,7 @@ function Allow([string]$Name, [hashtable]$P) {
   New-NetFirewallRule -Group $G -DisplayName $Name -Direction Inbound -Action Allow -Profile Any @P | Out-Null
 }
 Allow 'fud-moat trusted: management network' @{ RemoteAddress = @('172.16.1.0/24') }
+Allow 'fud-moat trusted: netbird egress' @{ RemoteAddress = @('10.3.1.99/32') }
 Allow 'fud-moat trusted: datadog' @{ RemoteAddress = @('107.21.25.247/32', '108.137.133.223/32', '108.137.188.57/32', '13.114.211.96/32', '13.115.46.213/32', '13.126.169.175/32', '13.208.126.217/32', '13.208.133.55/32', '13.208.142.17/32', '13.208.255.200/32', '13.209.118.42/32', '13.209.230.111/32', '13.234.54.8/32', '13.236.246.161/32', '13.238.14.57/32', '13.244.188.203/32', '13.244.85.86/32', '13.245.194.43/32', '13.245.200.254/32', '13.246.172.210/32', '13.247.164.9/32', '13.48.150.244/32', '13.48.239.118/32', '13.48.254.37/32', '13.54.169.48/32', '15.152.238.192/32', '15.161.86.71/32', '15.165.240.116/32', '15.168.188.85/32', '15.188.202.64/32', '15.188.240.172/32', '15.188.243.248/32', '16.162.136.62/32', '16.163.153.45/32', '18.102.80.189/32', '18.130.113.168/32', '18.139.52.173/32', '18.163.21.55/32', '18.163.59.106/32', '18.166.19.255/32', '18.195.155.52/32', '18.200.120.237/32', '18.229.28.50/32', '18.229.36.120/32', '18.96.130.96/29', '18.96.16.112/29', '18.96.227.72/29', '18.97.147.8/29', '18.98.131.24/29', '18.98.196.216/29', '18.98.67.176/29', '18.98.96.240/29', '18.99.147.8/29', '18.99.209.96/29', '18.99.224.56/29', '18.99.34.208/29', '18.99.4.112/29', '18.99.99.232/29', '20.62.248.141/32', '20.83.144.189/32', '209.162.159.0/26', '3.1.219.207/32', '3.1.36.99/32', '3.120.223.25/32', '3.121.24.234/32', '3.18.172.189/32', '3.18.188.104/32', '3.18.197.0/32', '3.35.66.96/32', '3.36.177.119/32', '3.40.134.72/29', '3.40.2.64/29', '3.41.0.88/29', '3.41.176.48/29', '3.42.136.80/29', '3.44.192.120/29', '3.45.0.40/29', '3.92.150.182/32', '3.96.7.126/32', '34.0.225.0/24', '34.110.187.75/32', '34.117.129.254/32', '34.121.119.136/32', '34.145.82.128/29', '34.146.154.144/29', '34.149.119.85/32', '34.149.203.90/32', '34.149.54.227/32', '34.149.66.128/26', '34.159.50.128/29', '34.160.125.158/32', '34.160.150.109/32', '34.160.40.115/32', '34.160.41.148/32', '34.160.7.29/32', '34.174.98.16/29', '34.208.32.189/32', '34.48.76.208/29', '34.69.237.0/24', '34.94.234.88/29', '35.152.76.8/32', '35.154.93.182/32', '35.176.195.46/32', '35.177.43.250/32', '35.184.241.87/32', '35.190.51.116/32', '35.223.11.90/32', '35.244.255.175/32', '40.76.107.170/32', '43.198.123.228/32', '43.203.72.233/32', '43.218.5.202/32', '5.60.130.112/29', '52.186.167.216/29', '52.192.175.207/32', '52.35.61.232/32', '52.55.56.26/32', '52.60.189.53/32', '52.67.95.251/32', '52.89.221.151/32', '52.9.13.199/32', '52.9.139.134/32', '54.177.155.33/32', '63.34.100.178/32', '63.35.33.198/32', '8.234.4.128/25', '99.79.87.237/32') }
 Allow 'fud-moat ping (scored)' @{ Protocol = 'ICMPv4'; IcmpType = 8 }
 Allow 'fud-moat telnet tcp (scored)' @{ Protocol = 'TCP'; LocalPort = @('23') }
@@ -959,9 +981,9 @@ Snap | Set-Content "$B\\expected.txt"
 
 # lockout insurance: roll back unless "keep it" runs first
 $a = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -File \`"$B\\rollback.ps1\`""
-$t = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5)
+$t = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1)
 Register-ScheduledTask -TaskName 'fud-moat-rollback' -Action $a -Trigger $t -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
-Write-Host "rules up. rolling back in 5 min unless u run keep it from a NEW session"
+Write-Host "rules up. rolling back in 1 min unless u run keep it from a NEW session"
 $other = Get-NetFirewallRule -Direction Inbound -Action Block -Enabled True | Where-Object { $_.Group -notlike 'fud-moat*' }
 if ($other) { Write-Warning "other inbound block rules exist, they beat allow rules. check them:"; $other | Format-Table DisplayName, Group }
 
@@ -985,7 +1007,7 @@ Get-NetTCPConnection -State Established -ErrorAction SilentlyContinue | Where-Ob
 exports[`renderRules > scrutineering × firewalld matches the snapshot 1`] = `
 "#!/bin/sh
 # fud moat · scrutineering (192.168.3.3) · firewalld · allowlist
-# paste into a root shell. rolls back in 5 min unless u run "keep it".
+# paste into a root shell. rolls back in 1 min unless u run "keep it".
 set -eu
 B=/etc/fud-moat
 systemctl is-active --quiet firewalld || { echo "✗ firewalld isn't running. systemctl enable --now firewalld, then run this again"; exit 1; }
@@ -1044,6 +1066,10 @@ done
 for n in 172.16.1.0/24; do
   fw --zone=trusted --add-source="$n" || echo "  couldn't trust $n (in another zone?)"
 done
+# trusted: netbird egress
+for n in 10.3.1.99/32; do
+  fw --zone=trusted --add-source="$n" || echo "  couldn't trust $n (in another zone?)"
+done
 # trusted: datadog
 for n in 107.21.25.247/32 108.137.133.223/32 108.137.188.57/32 13.114.211.96/32 13.115.46.213/32 13.126.169.175/32 13.208.126.217/32 13.208.133.55/32 13.208.142.17/32 13.208.255.200/32 13.209.118.42/32 13.209.230.111/32 13.234.54.8/32 13.236.246.161/32 13.238.14.57/32 13.244.188.203/32 13.244.85.86/32 13.245.194.43/32 13.245.200.254/32 13.246.172.210/32 13.247.164.9/32 13.48.150.244/32 13.48.239.118/32 13.48.254.37/32 13.54.169.48/32 15.152.238.192/32 15.161.86.71/32 15.165.240.116/32 15.168.188.85/32 15.188.202.64/32 15.188.240.172/32 15.188.243.248/32 16.162.136.62/32 16.163.153.45/32 18.102.80.189/32 18.130.113.168/32 18.139.52.173/32 18.163.21.55/32 18.163.59.106/32 18.166.19.255/32 18.195.155.52/32 18.200.120.237/32 18.229.28.50/32 18.229.36.120/32 18.96.130.96/29 18.96.16.112/29 18.96.227.72/29 18.97.147.8/29 18.98.131.24/29 18.98.196.216/29 18.98.67.176/29 18.98.96.240/29 18.99.147.8/29 18.99.209.96/29 18.99.224.56/29 18.99.34.208/29 18.99.4.112/29 18.99.99.232/29 20.62.248.141/32 20.83.144.189/32 209.162.159.0/26 3.1.219.207/32 3.1.36.99/32 3.120.223.25/32 3.121.24.234/32 3.18.172.189/32 3.18.188.104/32 3.18.197.0/32 3.35.66.96/32 3.36.177.119/32 3.40.134.72/29 3.40.2.64/29 3.41.0.88/29 3.41.176.48/29 3.42.136.80/29 3.44.192.120/29 3.45.0.40/29 3.92.150.182/32 3.96.7.126/32 34.0.225.0/24 34.110.187.75/32 34.117.129.254/32 34.121.119.136/32 34.145.82.128/29 34.146.154.144/29 34.149.119.85/32 34.149.203.90/32 34.149.54.227/32 34.149.66.128/26 34.159.50.128/29 34.160.125.158/32 34.160.150.109/32 34.160.40.115/32 34.160.41.148/32 34.160.7.29/32 34.174.98.16/29 34.208.32.189/32 34.48.76.208/29 34.69.237.0/24 34.94.234.88/29 35.152.76.8/32 35.154.93.182/32 35.176.195.46/32 35.177.43.250/32 35.184.241.87/32 35.190.51.116/32 35.223.11.90/32 35.244.255.175/32 40.76.107.170/32 43.198.123.228/32 43.203.72.233/32 43.218.5.202/32 5.60.130.112/29 52.186.167.216/29 52.192.175.207/32 52.35.61.232/32 52.55.56.26/32 52.60.189.53/32 52.67.95.251/32 52.89.221.151/32 52.9.13.199/32 52.9.139.134/32 54.177.155.33/32 63.34.100.178/32 63.35.33.198/32 8.234.4.128/25 99.79.87.237/32; do
   fw --zone=trusted --add-source="$n" || echo "  couldn't trust $n (in another zone?)"
@@ -1072,9 +1098,9 @@ snap() {
 snap > "$B/expected.txt" 2>&1 || true
 
 # lockout insurance: roll back unless "keep it" runs first
-nohup sh -c "sleep 300; sh $B/rollback.sh" >/dev/null 2>&1 &
+nohup sh -c "sleep 60; sh $B/rollback.sh" >/dev/null 2>&1 &
 echo $! > "$B/rollback.pid"
-echo "✓ rules up. rolling back in 5 min unless u run keep it from a NEW session"
+echo "✓ rules up. rolling back in 1 min unless u run keep it from a NEW session"
 
 # sessions that were already open keep working (established traffic is let through), so look at each one
 if command -v ss >/dev/null 2>&1; then
@@ -1100,7 +1126,7 @@ fi
 exports[`renderRules > scrutineering × iptables matches the snapshot 1`] = `
 "#!/bin/sh
 # fud moat · scrutineering (192.168.3.3) · iptables · allowlist
-# paste into a root shell. rolls back in 5 min unless u run "keep it".
+# paste into a root shell. rolls back in 1 min unless u run "keep it".
 set -eu
 B=/etc/fud-moat
 command -v iptables >/dev/null 2>&1 || { echo "✗ iptables not found"; exit 1; }
@@ -1134,6 +1160,7 @@ ipt -A FUD_IN -i lo -j ACCEPT
 ipt -A FUD_IN -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ipt -A FUD_IN -m conntrack --ctstate INVALID -j DROP
 ipt -A FUD_IN -s 172.16.1.0/24 -j ACCEPT -m comment --comment "trusted management network"
+ipt -A FUD_IN -s 10.3.1.99/32 -j ACCEPT -m comment --comment "trusted netbird egress"
 for n in 107.21.25.247/32 108.137.133.223/32 108.137.188.57/32 13.114.211.96/32 13.115.46.213/32 13.126.169.175/32 13.208.126.217/32 13.208.133.55/32 13.208.142.17/32 13.208.255.200/32 13.209.118.42/32 13.209.230.111/32 13.234.54.8/32 13.236.246.161/32 13.238.14.57/32 13.244.188.203/32 13.244.85.86/32 13.245.194.43/32 13.245.200.254/32 13.246.172.210/32 13.247.164.9/32 13.48.150.244/32 13.48.239.118/32 13.48.254.37/32 13.54.169.48/32 15.152.238.192/32 15.161.86.71/32 15.165.240.116/32 15.168.188.85/32 15.188.202.64/32 15.188.240.172/32 15.188.243.248/32 16.162.136.62/32 16.163.153.45/32 18.102.80.189/32 18.130.113.168/32 18.139.52.173/32 18.163.21.55/32 18.163.59.106/32 18.166.19.255/32 18.195.155.52/32 18.200.120.237/32 18.229.28.50/32 18.229.36.120/32 18.96.130.96/29 18.96.16.112/29 18.96.227.72/29 18.97.147.8/29 18.98.131.24/29 18.98.196.216/29 18.98.67.176/29 18.98.96.240/29 18.99.147.8/29 18.99.209.96/29 18.99.224.56/29 18.99.34.208/29 18.99.4.112/29 18.99.99.232/29 20.62.248.141/32 20.83.144.189/32 209.162.159.0/26 3.1.219.207/32 3.1.36.99/32 3.120.223.25/32 3.121.24.234/32 3.18.172.189/32 3.18.188.104/32 3.18.197.0/32 3.35.66.96/32 3.36.177.119/32 3.40.134.72/29 3.40.2.64/29 3.41.0.88/29 3.41.176.48/29 3.42.136.80/29 3.44.192.120/29 3.45.0.40/29 3.92.150.182/32 3.96.7.126/32 34.0.225.0/24 34.110.187.75/32 34.117.129.254/32 34.121.119.136/32 34.145.82.128/29 34.146.154.144/29 34.149.119.85/32 34.149.203.90/32 34.149.54.227/32 34.149.66.128/26 34.159.50.128/29 34.160.125.158/32 34.160.150.109/32 34.160.40.115/32 34.160.41.148/32 34.160.7.29/32 34.174.98.16/29 34.208.32.189/32 34.48.76.208/29 34.69.237.0/24 34.94.234.88/29 35.152.76.8/32 35.154.93.182/32 35.176.195.46/32 35.177.43.250/32 35.184.241.87/32 35.190.51.116/32 35.223.11.90/32 35.244.255.175/32 40.76.107.170/32 43.198.123.228/32 43.203.72.233/32 43.218.5.202/32 5.60.130.112/29 52.186.167.216/29 52.192.175.207/32 52.35.61.232/32 52.55.56.26/32 52.60.189.53/32 52.67.95.251/32 52.89.221.151/32 52.9.13.199/32 52.9.139.134/32 54.177.155.33/32 63.34.100.178/32 63.35.33.198/32 8.234.4.128/25 99.79.87.237/32; do
   ipt -A FUD_IN -s "$n" -j ACCEPT -m comment --comment "trusted datadog"
 done
@@ -1162,9 +1189,9 @@ snap() {
 snap > "$B/expected.txt" 2>&1 || true
 
 # lockout insurance: roll back unless "keep it" runs first
-nohup sh -c "sleep 300; sh $B/rollback.sh" >/dev/null 2>&1 &
+nohup sh -c "sleep 60; sh $B/rollback.sh" >/dev/null 2>&1 &
 echo $! > "$B/rollback.pid"
-echo "✓ rules up. rolling back in 5 min unless u run keep it from a NEW session"
+echo "✓ rules up. rolling back in 1 min unless u run keep it from a NEW session"
 
 # sessions that were already open keep working (established traffic is let through), so look at each one
 if command -v ss >/dev/null 2>&1; then
@@ -1190,7 +1217,7 @@ fi
 exports[`renderRules > scrutineering × nftables matches the snapshot 1`] = `
 "#!/bin/sh
 # fud moat · scrutineering (192.168.3.3) · nftables · allowlist
-# paste into a root shell. rolls back in 5 min unless u run "keep it".
+# paste into a root shell. rolls back in 1 min unless u run "keep it".
 set -eu
 B=/etc/fud-moat
 command -v nft >/dev/null 2>&1 || { echo "✗ nft not found. apt install nftables (or dnf install nftables)"; exit 1; }
@@ -1219,6 +1246,10 @@ table inet fud_moat {
     elements = { 172.16.1.0/24 }
   }
   set trusted_1 {
+    type ipv4_addr; flags interval; auto-merge
+    elements = { 10.3.1.99/32 }
+  }
+  set trusted_2 {
     type ipv4_addr; flags interval; auto-merge
     elements = {
       107.21.25.247/32, 108.137.133.223/32, 108.137.188.57/32, 13.114.211.96/32, 13.115.46.213/32, 13.126.169.175/32,
@@ -1252,7 +1283,8 @@ table inet fud_moat {
     ct state invalid drop
     icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept
     ip saddr @trusted_0 accept comment "trusted: management network"
-    ip saddr @trusted_1 accept comment "trusted: datadog"
+    ip saddr @trusted_1 accept comment "trusted: netbird egress"
+    ip saddr @trusted_2 accept comment "trusted: datadog"
     tcp dport { 3306 } accept comment "mariadb (scored)"
     ip saddr { 10.3.1.0/24, 172.20.1.3 } tcp dport { 22 } accept comment "ssh"
     icmp type echo-request accept comment "ping"
@@ -1272,9 +1304,9 @@ snap() {
 snap > "$B/expected.txt" 2>&1 || true
 
 # lockout insurance: roll back unless "keep it" runs first
-nohup sh -c "sleep 300; sh $B/rollback.sh" >/dev/null 2>&1 &
+nohup sh -c "sleep 60; sh $B/rollback.sh" >/dev/null 2>&1 &
 echo $! > "$B/rollback.pid"
-echo "✓ rules up. rolling back in 5 min unless u run keep it from a NEW session"
+echo "✓ rules up. rolling back in 1 min unless u run keep it from a NEW session"
 
 # sessions that were already open keep working (established traffic is let through), so look at each one
 if command -v ss >/dev/null 2>&1; then
@@ -1299,7 +1331,7 @@ fi
 
 exports[`renderRules > stewards × powershell matches the snapshot 1`] = `
 "# fud moat · stewards (192.168.3.2) · powershell · allowlist
-# paste into an elevated powershell. rolls back in 5 min unless u run "keep it".
+# paste into an elevated powershell. rolls back in 1 min unless u run "keep it".
 $ErrorActionPreference = 'Stop'
 $B = 'C:\\fud-moat'
 $G = 'fud-moat'
@@ -1339,6 +1371,7 @@ function Allow([string]$Name, [hashtable]$P) {
   New-NetFirewallRule -Group $G -DisplayName $Name -Direction Inbound -Action Allow -Profile Any @P | Out-Null
 }
 Allow 'fud-moat trusted: management network' @{ RemoteAddress = @('172.16.1.0/24') }
+Allow 'fud-moat trusted: netbird egress' @{ RemoteAddress = @('10.3.1.99/32') }
 Allow 'fud-moat trusted: datadog' @{ RemoteAddress = @('107.21.25.247/32', '108.137.133.223/32', '108.137.188.57/32', '13.114.211.96/32', '13.115.46.213/32', '13.126.169.175/32', '13.208.126.217/32', '13.208.133.55/32', '13.208.142.17/32', '13.208.255.200/32', '13.209.118.42/32', '13.209.230.111/32', '13.234.54.8/32', '13.236.246.161/32', '13.238.14.57/32', '13.244.188.203/32', '13.244.85.86/32', '13.245.194.43/32', '13.245.200.254/32', '13.246.172.210/32', '13.247.164.9/32', '13.48.150.244/32', '13.48.239.118/32', '13.48.254.37/32', '13.54.169.48/32', '15.152.238.192/32', '15.161.86.71/32', '15.165.240.116/32', '15.168.188.85/32', '15.188.202.64/32', '15.188.240.172/32', '15.188.243.248/32', '16.162.136.62/32', '16.163.153.45/32', '18.102.80.189/32', '18.130.113.168/32', '18.139.52.173/32', '18.163.21.55/32', '18.163.59.106/32', '18.166.19.255/32', '18.195.155.52/32', '18.200.120.237/32', '18.229.28.50/32', '18.229.36.120/32', '18.96.130.96/29', '18.96.16.112/29', '18.96.227.72/29', '18.97.147.8/29', '18.98.131.24/29', '18.98.196.216/29', '18.98.67.176/29', '18.98.96.240/29', '18.99.147.8/29', '18.99.209.96/29', '18.99.224.56/29', '18.99.34.208/29', '18.99.4.112/29', '18.99.99.232/29', '20.62.248.141/32', '20.83.144.189/32', '209.162.159.0/26', '3.1.219.207/32', '3.1.36.99/32', '3.120.223.25/32', '3.121.24.234/32', '3.18.172.189/32', '3.18.188.104/32', '3.18.197.0/32', '3.35.66.96/32', '3.36.177.119/32', '3.40.134.72/29', '3.40.2.64/29', '3.41.0.88/29', '3.41.176.48/29', '3.42.136.80/29', '3.44.192.120/29', '3.45.0.40/29', '3.92.150.182/32', '3.96.7.126/32', '34.0.225.0/24', '34.110.187.75/32', '34.117.129.254/32', '34.121.119.136/32', '34.145.82.128/29', '34.146.154.144/29', '34.149.119.85/32', '34.149.203.90/32', '34.149.54.227/32', '34.149.66.128/26', '34.159.50.128/29', '34.160.125.158/32', '34.160.150.109/32', '34.160.40.115/32', '34.160.41.148/32', '34.160.7.29/32', '34.174.98.16/29', '34.208.32.189/32', '34.48.76.208/29', '34.69.237.0/24', '34.94.234.88/29', '35.152.76.8/32', '35.154.93.182/32', '35.176.195.46/32', '35.177.43.250/32', '35.184.241.87/32', '35.190.51.116/32', '35.223.11.90/32', '35.244.255.175/32', '40.76.107.170/32', '43.198.123.228/32', '43.203.72.233/32', '43.218.5.202/32', '5.60.130.112/29', '52.186.167.216/29', '52.192.175.207/32', '52.35.61.232/32', '52.55.56.26/32', '52.60.189.53/32', '52.67.95.251/32', '52.89.221.151/32', '52.9.13.199/32', '52.9.139.134/32', '54.177.155.33/32', '63.34.100.178/32', '63.35.33.198/32', '8.234.4.128/25', '99.79.87.237/32') }
 Allow 'fud-moat iis tcp (scored)' @{ Protocol = 'TCP'; LocalPort = @('80', '443') }
 Allow 'fud-moat rdp tcp' @{ Protocol = 'TCP'; LocalPort = @('3389'); RemoteAddress = @('10.3.1.0/24', '172.20.1.3') }
@@ -1367,9 +1400,9 @@ Snap | Set-Content "$B\\expected.txt"
 
 # lockout insurance: roll back unless "keep it" runs first
 $a = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -File \`"$B\\rollback.ps1\`""
-$t = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5)
+$t = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1)
 Register-ScheduledTask -TaskName 'fud-moat-rollback' -Action $a -Trigger $t -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
-Write-Host "rules up. rolling back in 5 min unless u run keep it from a NEW session"
+Write-Host "rules up. rolling back in 1 min unless u run keep it from a NEW session"
 $other = Get-NetFirewallRule -Direction Inbound -Action Block -Enabled True | Where-Object { $_.Group -notlike 'fud-moat*' }
 if ($other) { Write-Warning "other inbound block rules exist, they beat allow rules. check them:"; $other | Format-Table DisplayName, Group }
 
@@ -1392,7 +1425,7 @@ Get-NetTCPConnection -State Established -ErrorAction SilentlyContinue | Where-Ob
 
 exports[`renderRules > teamradio × powershell matches the snapshot 1`] = `
 "# fud moat · teamradio (10.3.1.2) · powershell · allowlist
-# paste into an elevated powershell. rolls back in 5 min unless u run "keep it".
+# paste into an elevated powershell. rolls back in 1 min unless u run "keep it".
 $ErrorActionPreference = 'Stop'
 $B = 'C:\\fud-moat'
 $G = 'fud-moat'
@@ -1432,6 +1465,7 @@ function Allow([string]$Name, [hashtable]$P) {
   New-NetFirewallRule -Group $G -DisplayName $Name -Direction Inbound -Action Allow -Profile Any @P | Out-Null
 }
 Allow 'fud-moat trusted: management network' @{ RemoteAddress = @('172.16.1.0/24') }
+Allow 'fud-moat trusted: netbird egress' @{ RemoteAddress = @('10.3.1.99/32') }
 Allow 'fud-moat trusted: datadog' @{ RemoteAddress = @('107.21.25.247/32', '108.137.133.223/32', '108.137.188.57/32', '13.114.211.96/32', '13.115.46.213/32', '13.126.169.175/32', '13.208.126.217/32', '13.208.133.55/32', '13.208.142.17/32', '13.208.255.200/32', '13.209.118.42/32', '13.209.230.111/32', '13.234.54.8/32', '13.236.246.161/32', '13.238.14.57/32', '13.244.188.203/32', '13.244.85.86/32', '13.245.194.43/32', '13.245.200.254/32', '13.246.172.210/32', '13.247.164.9/32', '13.48.150.244/32', '13.48.239.118/32', '13.48.254.37/32', '13.54.169.48/32', '15.152.238.192/32', '15.161.86.71/32', '15.165.240.116/32', '15.168.188.85/32', '15.188.202.64/32', '15.188.240.172/32', '15.188.243.248/32', '16.162.136.62/32', '16.163.153.45/32', '18.102.80.189/32', '18.130.113.168/32', '18.139.52.173/32', '18.163.21.55/32', '18.163.59.106/32', '18.166.19.255/32', '18.195.155.52/32', '18.200.120.237/32', '18.229.28.50/32', '18.229.36.120/32', '18.96.130.96/29', '18.96.16.112/29', '18.96.227.72/29', '18.97.147.8/29', '18.98.131.24/29', '18.98.196.216/29', '18.98.67.176/29', '18.98.96.240/29', '18.99.147.8/29', '18.99.209.96/29', '18.99.224.56/29', '18.99.34.208/29', '18.99.4.112/29', '18.99.99.232/29', '20.62.248.141/32', '20.83.144.189/32', '209.162.159.0/26', '3.1.219.207/32', '3.1.36.99/32', '3.120.223.25/32', '3.121.24.234/32', '3.18.172.189/32', '3.18.188.104/32', '3.18.197.0/32', '3.35.66.96/32', '3.36.177.119/32', '3.40.134.72/29', '3.40.2.64/29', '3.41.0.88/29', '3.41.176.48/29', '3.42.136.80/29', '3.44.192.120/29', '3.45.0.40/29', '3.92.150.182/32', '3.96.7.126/32', '34.0.225.0/24', '34.110.187.75/32', '34.117.129.254/32', '34.121.119.136/32', '34.145.82.128/29', '34.146.154.144/29', '34.149.119.85/32', '34.149.203.90/32', '34.149.54.227/32', '34.149.66.128/26', '34.159.50.128/29', '34.160.125.158/32', '34.160.150.109/32', '34.160.40.115/32', '34.160.41.148/32', '34.160.7.29/32', '34.174.98.16/29', '34.208.32.189/32', '34.48.76.208/29', '34.69.237.0/24', '34.94.234.88/29', '35.152.76.8/32', '35.154.93.182/32', '35.176.195.46/32', '35.177.43.250/32', '35.184.241.87/32', '35.190.51.116/32', '35.223.11.90/32', '35.244.255.175/32', '40.76.107.170/32', '43.198.123.228/32', '43.203.72.233/32', '43.218.5.202/32', '5.60.130.112/29', '52.186.167.216/29', '52.192.175.207/32', '52.35.61.232/32', '52.55.56.26/32', '52.60.189.53/32', '52.67.95.251/32', '52.89.221.151/32', '52.9.13.199/32', '52.9.139.134/32', '54.177.155.33/32', '63.34.100.178/32', '63.35.33.198/32', '8.234.4.128/25', '99.79.87.237/32') }
 Allow 'fud-moat winrm tcp (scored)' @{ Protocol = 'TCP'; LocalPort = @('5985-5986') }
 Allow 'fud-moat rdp tcp' @{ Protocol = 'TCP'; LocalPort = @('3389'); RemoteAddress = @('10.3.1.0/24', '172.20.1.3') }
@@ -1459,9 +1493,9 @@ Snap | Set-Content "$B\\expected.txt"
 
 # lockout insurance: roll back unless "keep it" runs first
 $a = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -File \`"$B\\rollback.ps1\`""
-$t = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5)
+$t = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1)
 Register-ScheduledTask -TaskName 'fud-moat-rollback' -Action $a -Trigger $t -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
-Write-Host "rules up. rolling back in 5 min unless u run keep it from a NEW session"
+Write-Host "rules up. rolling back in 1 min unless u run keep it from a NEW session"
 $other = Get-NetFirewallRule -Direction Inbound -Action Block -Enabled True | Where-Object { $_.Group -notlike 'fud-moat*' }
 if ($other) { Write-Warning "other inbound block rules exist, they beat allow rules. check them:"; $other | Format-Table DisplayName, Group }
 
@@ -1485,7 +1519,7 @@ Get-NetTCPConnection -State Established -ErrorAction SilentlyContinue | Where-Ob
 exports[`renderRules > timing × iptables matches the snapshot 1`] = `
 "#!/bin/sh
 # fud moat · timing (192.168.3.4) · iptables · allowlist
-# paste into a root shell. rolls back in 5 min unless u run "keep it".
+# paste into a root shell. rolls back in 1 min unless u run "keep it".
 set -eu
 B=/etc/fud-moat
 command -v iptables >/dev/null 2>&1 || { echo "✗ iptables not found"; exit 1; }
@@ -1519,6 +1553,7 @@ ipt -A FUD_IN -i lo -j ACCEPT
 ipt -A FUD_IN -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ipt -A FUD_IN -m conntrack --ctstate INVALID -j DROP
 ipt -A FUD_IN -s 172.16.1.0/24 -j ACCEPT -m comment --comment "trusted management network"
+ipt -A FUD_IN -s 10.3.1.99/32 -j ACCEPT -m comment --comment "trusted netbird egress"
 for n in 107.21.25.247/32 108.137.133.223/32 108.137.188.57/32 13.114.211.96/32 13.115.46.213/32 13.126.169.175/32 13.208.126.217/32 13.208.133.55/32 13.208.142.17/32 13.208.255.200/32 13.209.118.42/32 13.209.230.111/32 13.234.54.8/32 13.236.246.161/32 13.238.14.57/32 13.244.188.203/32 13.244.85.86/32 13.245.194.43/32 13.245.200.254/32 13.246.172.210/32 13.247.164.9/32 13.48.150.244/32 13.48.239.118/32 13.48.254.37/32 13.54.169.48/32 15.152.238.192/32 15.161.86.71/32 15.165.240.116/32 15.168.188.85/32 15.188.202.64/32 15.188.240.172/32 15.188.243.248/32 16.162.136.62/32 16.163.153.45/32 18.102.80.189/32 18.130.113.168/32 18.139.52.173/32 18.163.21.55/32 18.163.59.106/32 18.166.19.255/32 18.195.155.52/32 18.200.120.237/32 18.229.28.50/32 18.229.36.120/32 18.96.130.96/29 18.96.16.112/29 18.96.227.72/29 18.97.147.8/29 18.98.131.24/29 18.98.196.216/29 18.98.67.176/29 18.98.96.240/29 18.99.147.8/29 18.99.209.96/29 18.99.224.56/29 18.99.34.208/29 18.99.4.112/29 18.99.99.232/29 20.62.248.141/32 20.83.144.189/32 209.162.159.0/26 3.1.219.207/32 3.1.36.99/32 3.120.223.25/32 3.121.24.234/32 3.18.172.189/32 3.18.188.104/32 3.18.197.0/32 3.35.66.96/32 3.36.177.119/32 3.40.134.72/29 3.40.2.64/29 3.41.0.88/29 3.41.176.48/29 3.42.136.80/29 3.44.192.120/29 3.45.0.40/29 3.92.150.182/32 3.96.7.126/32 34.0.225.0/24 34.110.187.75/32 34.117.129.254/32 34.121.119.136/32 34.145.82.128/29 34.146.154.144/29 34.149.119.85/32 34.149.203.90/32 34.149.54.227/32 34.149.66.128/26 34.159.50.128/29 34.160.125.158/32 34.160.150.109/32 34.160.40.115/32 34.160.41.148/32 34.160.7.29/32 34.174.98.16/29 34.208.32.189/32 34.48.76.208/29 34.69.237.0/24 34.94.234.88/29 35.152.76.8/32 35.154.93.182/32 35.176.195.46/32 35.177.43.250/32 35.184.241.87/32 35.190.51.116/32 35.223.11.90/32 35.244.255.175/32 40.76.107.170/32 43.198.123.228/32 43.203.72.233/32 43.218.5.202/32 5.60.130.112/29 52.186.167.216/29 52.192.175.207/32 52.35.61.232/32 52.55.56.26/32 52.60.189.53/32 52.67.95.251/32 52.89.221.151/32 52.9.13.199/32 52.9.139.134/32 54.177.155.33/32 63.34.100.178/32 63.35.33.198/32 8.234.4.128/25 99.79.87.237/32; do
   ipt -A FUD_IN -s "$n" -j ACCEPT -m comment --comment "trusted datadog"
 done
@@ -1555,9 +1590,9 @@ snap() {
 snap > "$B/expected.txt" 2>&1 || true
 
 # lockout insurance: roll back unless "keep it" runs first
-nohup sh -c "sleep 300; sh $B/rollback.sh" >/dev/null 2>&1 &
+nohup sh -c "sleep 60; sh $B/rollback.sh" >/dev/null 2>&1 &
 echo $! > "$B/rollback.pid"
-echo "✓ rules up. rolling back in 5 min unless u run keep it from a NEW session"
+echo "✓ rules up. rolling back in 1 min unless u run keep it from a NEW session"
 
 # sessions that were already open keep working (established traffic is let through), so look at each one
 if command -v ss >/dev/null 2>&1; then
@@ -1583,7 +1618,7 @@ fi
 exports[`renderRules > timing × nftables matches the snapshot 1`] = `
 "#!/bin/sh
 # fud moat · timing (192.168.3.4) · nftables · allowlist
-# paste into a root shell. rolls back in 5 min unless u run "keep it".
+# paste into a root shell. rolls back in 1 min unless u run "keep it".
 set -eu
 B=/etc/fud-moat
 command -v nft >/dev/null 2>&1 || { echo "✗ nft not found. apt install nftables (or dnf install nftables)"; exit 1; }
@@ -1612,6 +1647,10 @@ table inet fud_moat {
     elements = { 172.16.1.0/24 }
   }
   set trusted_1 {
+    type ipv4_addr; flags interval; auto-merge
+    elements = { 10.3.1.99/32 }
+  }
+  set trusted_2 {
     type ipv4_addr; flags interval; auto-merge
     elements = {
       107.21.25.247/32, 108.137.133.223/32, 108.137.188.57/32, 13.114.211.96/32, 13.115.46.213/32, 13.126.169.175/32,
@@ -1645,7 +1684,8 @@ table inet fud_moat {
     ct state invalid drop
     icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept
     ip saddr @trusted_0 accept comment "trusted: management network"
-    ip saddr @trusted_1 accept comment "trusted: datadog"
+    ip saddr @trusted_1 accept comment "trusted: netbird egress"
+    ip saddr @trusted_2 accept comment "trusted: datadog"
     tcp dport { 514 } accept comment "syslog"
     udp dport { 514 } accept comment "syslog"
     ip saddr { 10.3.1.0/24, 192.168.3.0/24, 172.20.1.3 } tcp dport { 1514-1515 } accept comment "wazuh agents"
@@ -1669,9 +1709,9 @@ snap() {
 snap > "$B/expected.txt" 2>&1 || true
 
 # lockout insurance: roll back unless "keep it" runs first
-nohup sh -c "sleep 300; sh $B/rollback.sh" >/dev/null 2>&1 &
+nohup sh -c "sleep 60; sh $B/rollback.sh" >/dev/null 2>&1 &
 echo $! > "$B/rollback.pid"
-echo "✓ rules up. rolling back in 5 min unless u run keep it from a NEW session"
+echo "✓ rules up. rolling back in 1 min unless u run keep it from a NEW session"
 
 # sessions that were already open keep working (established traffic is let through), so look at each one
 if command -v ss >/dev/null 2>&1; then
@@ -1697,7 +1737,7 @@ fi
 exports[`renderRules > timing × ufw matches the snapshot 1`] = `
 "#!/bin/sh
 # fud moat · timing (192.168.3.4) · ufw · allowlist
-# paste into a root shell. rolls back in 5 min unless u run "keep it".
+# paste into a root shell. rolls back in 1 min unless u run "keep it".
 set -eu
 B=/etc/fud-moat
 command -v ufw >/dev/null 2>&1 || { echo "✗ ufw not found. apt install ufw"; exit 1; }
@@ -1735,6 +1775,7 @@ ufw --force reset >/dev/null
 ufw default deny incoming >/dev/null
 ufw default allow outgoing >/dev/null
 ufw allow from 172.16.1.0/24 comment 'trusted: management network' >/dev/null
+ufw allow from 10.3.1.99/32 comment 'trusted: netbird egress' >/dev/null
 echo "adding 127 datadog ranges, takes a sec…"
 for n in 107.21.25.247/32 108.137.133.223/32 108.137.188.57/32 13.114.211.96/32 13.115.46.213/32 13.126.169.175/32 13.208.126.217/32 13.208.133.55/32 13.208.142.17/32 13.208.255.200/32 13.209.118.42/32 13.209.230.111/32 13.234.54.8/32 13.236.246.161/32 13.238.14.57/32 13.244.188.203/32 13.244.85.86/32 13.245.194.43/32 13.245.200.254/32 13.246.172.210/32 13.247.164.9/32 13.48.150.244/32 13.48.239.118/32 13.48.254.37/32 13.54.169.48/32 15.152.238.192/32 15.161.86.71/32 15.165.240.116/32 15.168.188.85/32 15.188.202.64/32 15.188.240.172/32 15.188.243.248/32 16.162.136.62/32 16.163.153.45/32 18.102.80.189/32 18.130.113.168/32 18.139.52.173/32 18.163.21.55/32 18.163.59.106/32 18.166.19.255/32 18.195.155.52/32 18.200.120.237/32 18.229.28.50/32 18.229.36.120/32 18.96.130.96/29 18.96.16.112/29 18.96.227.72/29 18.97.147.8/29 18.98.131.24/29 18.98.196.216/29 18.98.67.176/29 18.98.96.240/29 18.99.147.8/29 18.99.209.96/29 18.99.224.56/29 18.99.34.208/29 18.99.4.112/29 18.99.99.232/29 20.62.248.141/32 20.83.144.189/32 209.162.159.0/26 3.1.219.207/32 3.1.36.99/32 3.120.223.25/32 3.121.24.234/32 3.18.172.189/32 3.18.188.104/32 3.18.197.0/32 3.35.66.96/32 3.36.177.119/32 3.40.134.72/29 3.40.2.64/29 3.41.0.88/29 3.41.176.48/29 3.42.136.80/29 3.44.192.120/29 3.45.0.40/29 3.92.150.182/32 3.96.7.126/32 34.0.225.0/24 34.110.187.75/32 34.117.129.254/32 34.121.119.136/32 34.145.82.128/29 34.146.154.144/29 34.149.119.85/32 34.149.203.90/32 34.149.54.227/32 34.149.66.128/26 34.159.50.128/29 34.160.125.158/32 34.160.150.109/32 34.160.40.115/32 34.160.41.148/32 34.160.7.29/32 34.174.98.16/29 34.208.32.189/32 34.48.76.208/29 34.69.237.0/24 34.94.234.88/29 35.152.76.8/32 35.154.93.182/32 35.176.195.46/32 35.177.43.250/32 35.184.241.87/32 35.190.51.116/32 35.223.11.90/32 35.244.255.175/32 40.76.107.170/32 43.198.123.228/32 43.203.72.233/32 43.218.5.202/32 5.60.130.112/29 52.186.167.216/29 52.192.175.207/32 52.35.61.232/32 52.55.56.26/32 52.60.189.53/32 52.67.95.251/32 52.89.221.151/32 52.9.13.199/32 52.9.139.134/32 54.177.155.33/32 63.34.100.178/32 63.35.33.198/32 8.234.4.128/25 99.79.87.237/32; do
   ufw allow from "$n" comment 'trusted: datadog' >/dev/null
@@ -1761,9 +1802,9 @@ snap() {
 snap > "$B/expected.txt" 2>&1 || true
 
 # lockout insurance: roll back unless "keep it" runs first
-nohup sh -c "sleep 300; sh $B/rollback.sh" >/dev/null 2>&1 &
+nohup sh -c "sleep 60; sh $B/rollback.sh" >/dev/null 2>&1 &
 echo $! > "$B/rollback.pid"
-echo "✓ rules up. rolling back in 5 min unless u run keep it from a NEW session"
+echo "✓ rules up. rolling back in 1 min unless u run keep it from a NEW session"
 
 # sessions that were already open keep working (established traffic is let through), so look at each one
 if command -v ss >/dev/null 2>&1; then
@@ -1788,7 +1829,7 @@ fi
 
 exports[`renderRules > transporters × powershell matches the snapshot 1`] = `
 "# fud moat · transporters (192.168.3.1) · powershell · allowlist
-# paste into an elevated powershell. rolls back in 5 min unless u run "keep it".
+# paste into an elevated powershell. rolls back in 1 min unless u run "keep it".
 $ErrorActionPreference = 'Stop'
 $B = 'C:\\fud-moat'
 $G = 'fud-moat'
@@ -1828,6 +1869,7 @@ function Allow([string]$Name, [hashtable]$P) {
   New-NetFirewallRule -Group $G -DisplayName $Name -Direction Inbound -Action Allow -Profile Any @P | Out-Null
 }
 Allow 'fud-moat trusted: management network' @{ RemoteAddress = @('172.16.1.0/24') }
+Allow 'fud-moat trusted: netbird egress' @{ RemoteAddress = @('10.3.1.99/32') }
 Allow 'fud-moat trusted: datadog' @{ RemoteAddress = @('107.21.25.247/32', '108.137.133.223/32', '108.137.188.57/32', '13.114.211.96/32', '13.115.46.213/32', '13.126.169.175/32', '13.208.126.217/32', '13.208.133.55/32', '13.208.142.17/32', '13.208.255.200/32', '13.209.118.42/32', '13.209.230.111/32', '13.234.54.8/32', '13.236.246.161/32', '13.238.14.57/32', '13.244.188.203/32', '13.244.85.86/32', '13.245.194.43/32', '13.245.200.254/32', '13.246.172.210/32', '13.247.164.9/32', '13.48.150.244/32', '13.48.239.118/32', '13.48.254.37/32', '13.54.169.48/32', '15.152.238.192/32', '15.161.86.71/32', '15.165.240.116/32', '15.168.188.85/32', '15.188.202.64/32', '15.188.240.172/32', '15.188.243.248/32', '16.162.136.62/32', '16.163.153.45/32', '18.102.80.189/32', '18.130.113.168/32', '18.139.52.173/32', '18.163.21.55/32', '18.163.59.106/32', '18.166.19.255/32', '18.195.155.52/32', '18.200.120.237/32', '18.229.28.50/32', '18.229.36.120/32', '18.96.130.96/29', '18.96.16.112/29', '18.96.227.72/29', '18.97.147.8/29', '18.98.131.24/29', '18.98.196.216/29', '18.98.67.176/29', '18.98.96.240/29', '18.99.147.8/29', '18.99.209.96/29', '18.99.224.56/29', '18.99.34.208/29', '18.99.4.112/29', '18.99.99.232/29', '20.62.248.141/32', '20.83.144.189/32', '209.162.159.0/26', '3.1.219.207/32', '3.1.36.99/32', '3.120.223.25/32', '3.121.24.234/32', '3.18.172.189/32', '3.18.188.104/32', '3.18.197.0/32', '3.35.66.96/32', '3.36.177.119/32', '3.40.134.72/29', '3.40.2.64/29', '3.41.0.88/29', '3.41.176.48/29', '3.42.136.80/29', '3.44.192.120/29', '3.45.0.40/29', '3.92.150.182/32', '3.96.7.126/32', '34.0.225.0/24', '34.110.187.75/32', '34.117.129.254/32', '34.121.119.136/32', '34.145.82.128/29', '34.146.154.144/29', '34.149.119.85/32', '34.149.203.90/32', '34.149.54.227/32', '34.149.66.128/26', '34.159.50.128/29', '34.160.125.158/32', '34.160.150.109/32', '34.160.40.115/32', '34.160.41.148/32', '34.160.7.29/32', '34.174.98.16/29', '34.208.32.189/32', '34.48.76.208/29', '34.69.237.0/24', '34.94.234.88/29', '35.152.76.8/32', '35.154.93.182/32', '35.176.195.46/32', '35.177.43.250/32', '35.184.241.87/32', '35.190.51.116/32', '35.223.11.90/32', '35.244.255.175/32', '40.76.107.170/32', '43.198.123.228/32', '43.203.72.233/32', '43.218.5.202/32', '5.60.130.112/29', '52.186.167.216/29', '52.192.175.207/32', '52.35.61.232/32', '52.55.56.26/32', '52.60.189.53/32', '52.67.95.251/32', '52.89.221.151/32', '52.9.13.199/32', '52.9.139.134/32', '54.177.155.33/32', '63.34.100.178/32', '63.35.33.198/32', '8.234.4.128/25', '99.79.87.237/32') }
 Allow 'fud-moat smb tcp (scored)' @{ Protocol = 'TCP'; LocalPort = @('445') }
 Allow 'fud-moat rdp tcp' @{ Protocol = 'TCP'; LocalPort = @('3389'); RemoteAddress = @('10.3.1.0/24', '172.20.1.3') }
@@ -1856,9 +1898,9 @@ Snap | Set-Content "$B\\expected.txt"
 
 # lockout insurance: roll back unless "keep it" runs first
 $a = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -File \`"$B\\rollback.ps1\`""
-$t = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5)
+$t = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1)
 Register-ScheduledTask -TaskName 'fud-moat-rollback' -Action $a -Trigger $t -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
-Write-Host "rules up. rolling back in 5 min unless u run keep it from a NEW session"
+Write-Host "rules up. rolling back in 1 min unless u run keep it from a NEW session"
 $other = Get-NetFirewallRule -Direction Inbound -Action Block -Enabled True | Where-Object { $_.Group -notlike 'fud-moat*' }
 if ($other) { Write-Warning "other inbound block rules exist, they beat allow rules. check them:"; $other | Format-Table DisplayName, Group }
 

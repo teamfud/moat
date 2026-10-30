@@ -26,6 +26,7 @@ export const IRSEC_2026: Topology = {
   scope: ["10.{x}.1.0/24", "192.168.{x}.0/24"],
   trusted: [
     { cidr: "172.16.1.0/24", why: "management network" },
+    { cidr: "10.{x}.1.99/32", why: "netbird egress" },
     ...datadog.ipv4.map((cidr) => ({ cidr, why: "datadog" })),
   ],
   // The cloud boxes have no console, only remote access from the lan, which
