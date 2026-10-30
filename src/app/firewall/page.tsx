@@ -3,12 +3,15 @@
 import { useState } from "react";
 import { checkBox, checkTopology } from "@/lib/fw/guardrails";
 import { fill } from "@/lib/fw/ip";
-import { OS_LABELS, OS_TARGETS, TARGETS, type Box, type Policy, type Target, type Topology } from "@/lib/fw/model";
+import { bundle, bundleName } from "@/lib/fw/bundle";
+import { OS_LABELS, OS_TARGETS, TARGETS, targetFor, type Box, type Policy, type Target, type Topology } from "@/lib/fw/model";
 import { renderRules } from "@/lib/fw/render";
+import { download } from "@/lib/download";
 import { update, useHydrated, useStore } from "@/lib/store";
+import { zip } from "@/lib/zip";
 import { Findings } from "@/components/Findings";
 import { ScriptView } from "@/components/ScriptView";
-import { Badge, Card, Input, Label, PageHeader, Select } from "@/components/ui";
+import { Badge, Button, Card, Input, Label, PageHeader, Select } from "@/components/ui";
 
 const pill = (active: boolean) =>
   `whitespace-nowrap rounded-md border-2 px-2.5 py-0.5 font-display text-sm cursor-pointer ${active ? "border-border bg-accent text-accent-fg" : "border-transparent text-muted hover:text-fg"}`;
@@ -86,6 +89,7 @@ export default function FirewallPage() {
   const selected = topo.boxes.find((b) => b.id === pick) ?? (pick === "all" ? null : topo.boxes[0]);
   const shown = pick === "all" ? topo.boxes : selected ? [selected] : [];
   const setPolicy = (p: Partial<Policy>) => update((s) => ({ ...s, policy: { ...s.policy, ...p } }));
+  const { entries, skipped } = bundle(topo, policy, targets);
 
   return (
     <>
@@ -105,6 +109,15 @@ export default function FirewallPage() {
                   {b.name}
                 </button>
               ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button size="sm" variant="secondary" disabled={entries.length === 0} onClick={() => download(`${bundleName(topo)}.zip`, zip(entries), "application/zip")}>
+                download all (.zip)
+              </Button>
+              <span className="text-xs text-muted">
+                every box&apos;s scripts, a folder each. scp them over instead of pasting
+                {skipped.length > 0 && <span className="text-danger"> · skipped (errors): {skipped.join(", ")}</span>}
+              </span>
             </div>
             <div className="flex flex-wrap items-end gap-4">
               <Label>
@@ -129,7 +142,7 @@ export default function FirewallPage() {
             </div>
           </Card>
           {shown.map((b) => (
-            <BoxRules key={b.id} box={b} topo={topo} policy={policy} target={targets[b.id] && OS_TARGETS[b.os].includes(targets[b.id]) ? targets[b.id] : OS_TARGETS[b.os][0]} blocked={blocked} />
+            <BoxRules key={b.id} box={b} topo={topo} policy={policy} target={targetFor(b, targets)} blocked={blocked} />
           ))}
         </div>
       )}

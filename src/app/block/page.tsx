@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { checkBlock, checkTopology } from "@/lib/fw/guardrails";
 import { fill } from "@/lib/fw/ip";
-import { OS_TARGETS, type Box } from "@/lib/fw/model";
+import { targetFor } from "@/lib/fw/model";
 import { renderBlocks } from "@/lib/fw/render";
 import { update, useHydrated, useStore } from "@/lib/store";
 import { Findings } from "@/components/Findings";
@@ -27,7 +27,6 @@ export default function BlockPage() {
   const warned = verdicts.filter((v) => v.level === "warn").length;
   const topoFindings = checkTopology(topo).filter((f) => f.level === "error");
   const shown = pick === "all" ? topo.boxes : topo.boxes.filter((b) => b.id === pick);
-  const targetFor = (b: Box) => (targets[b.id] && OS_TARGETS[b.os].includes(targets[b.id]) ? targets[b.id] : OS_TARGETS[b.os][0]);
 
   return (
     <>
@@ -117,7 +116,7 @@ export default function BlockPage() {
                 ))}
               </div>
               {shown.map((b) => {
-                const t = targetFor(b);
+                const t = targetFor(b, targets);
                 const out = renderBlocks(b, topo, t, ips);
                 return (
                   <Card key={b.id}>

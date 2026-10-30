@@ -74,6 +74,10 @@ export const OS_TARGETS: Record<Os, Target[]> = {
   pfsense: ["pfsense"],
 };
 
+/** The firewall picked for a box, or its OS's best one if the pick doesn't fit. */
+export const targetFor = (box: Box, targets: Record<string, Target>): Target =>
+  targets[box.id] && OS_TARGETS[box.os].includes(targets[box.id]) ? targets[box.id] : OS_TARGETS[box.os][0];
+
 export const OS_LABELS: Record<Os, string> = {
   windows: "windows",
   debian: "debian",
