@@ -10,8 +10,11 @@ const tcp = (label: string, ports: string, from: Service["from"] = "any"): Servi
 const udp = (label: string, ports: string, from: Service["from"] = "any"): Service => ({ label, proto: "udp", ports, from });
 const ping: Service = { label: "ping", proto: "icmp", ports: "", from: "any" };
 
-const winAdmin = [tcp("rdp", "3389", "admin"), tcp("winrm", "5985-5986", "admin"), ping];
-const linuxAdmin = [tcp("ssh", "22", "admin"), ping];
+const ssh = tcp("ssh", "22", "admin");
+
+// Most windows boxes run openssh for competitor access.
+const winAdmin = [tcp("rdp", "3389", "admin"), tcp("winrm", "5985-5986", "admin"), ssh, ping];
+const linuxAdmin = [ssh, ping];
 
 const box = (b: Omit<Box, "id" | "docker" | "notes"> & Partial<Pick<Box, "docker" | "notes">>): Box => ({
   id: b.name,
@@ -68,7 +71,7 @@ export const IRSEC_2026: Topology = {
       addr: "10.{x}.1.2",
       os: "windows",
       scored: [tcp("winrm", "5985-5986")],
-      extra: [tcp("rdp", "3389", "admin"), ping],
+      extra: [tcp("rdp", "3389", "admin"), ssh, ping],
       notes: "guessed both winrm ports. check which one the scorer hits",
     }),
     box({
@@ -76,7 +79,7 @@ export const IRSEC_2026: Topology = {
       addr: "10.{x}.1.3",
       os: "windows",
       scored: [ping, tcp("telnet", "23")],
-      extra: [tcp("rdp", "3389", "admin"), tcp("winrm", "5985-5986", "admin")],
+      extra: [tcp("rdp", "3389", "admin"), tcp("winrm", "5985-5986", "admin"), ssh],
       notes: "icmp and telnet scored separately",
     }),
     box({ name: "pitlane", addr: "10.{x}.1.4", os: "debian", scored: [tcp("ssh", "22")], extra: [ping] }),

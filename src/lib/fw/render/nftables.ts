@@ -100,7 +100,7 @@ export function nftRules(rs: RuleSet): RulesOutput {
 ${writeFile("$B/rollback.sh", ROLLBACK)}
 # the rules, as a script so "keep it" can re-run it at boot
 cat > "$B/rules.pending.sh" <<'FUDMOAT'
-nft -f - <<'NFT'
+nft -f - <<'NFT' || { echo "✗ nft rejected the rules (errors above), nothing changed"; exit 1; }
 ${nftRuleset(rs)}
 NFT
 if [ -f ${DIR}/blocks.sh ]; then sh ${DIR}/blocks.sh; fi
